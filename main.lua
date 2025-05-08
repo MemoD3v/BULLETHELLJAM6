@@ -1,4 +1,4 @@
-local game = require("modules.game")
+local game = require("modules.init")
 local moonshine = require("libraries.moonshine")
 
 effect = moonshine(moonshine.effects.filmgrain)
