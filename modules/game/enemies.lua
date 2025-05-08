@@ -2,6 +2,7 @@ local enemies = {}
 local config = require("modules.game.config")
 local engine = require("modules.game.engine")
 local gameState = require("modules.game.gameState")
+local enemyBullets = require("modules.game.enemyBullets")
 
 enemies.list = {}
 enemies.spawnTimer = 0
@@ -10,17 +11,24 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
     if loadingBar.active then
         enemies.spawnTimer = enemies.spawnTimer + dt
 
-        local currentSpawnInterval = math.max(0.5, 3 - loadingBar.progress * 2.5)
+        -- Adjust spawn rate based on checkpoint progress and phase
+        local absoluteCheckpoint = (loadingBar.currentPhase - 1) * loadingBar.checkpointsPerPhase + loadingBar.currentCheckpoint
+        local currentSpawnInterval = math.max(0.5, 3 - (absoluteCheckpoint * 0.25))
 
         if enemies.spawnTimer >= currentSpawnInterval then
             enemies.spawnTimer = 0
-            enemies.spawn(loadingBar.currentCheckpoint, gridOffsetX, gridOffsetY)
+            enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
         end
     end
 
     for i = #enemies.list, 1, -1 do
         local e = enemies.list[i]
         e.animTimer = e.animTimer + dt
+        
+        -- Update enemy fire cooldowns
+        if e.fireCooldown > 0 then
+            e.fireCooldown = e.fireCooldown - dt
+        end
 
         local engineX = gridOffsetX + (engine.x - 1) * config.cellSize + config.cellSize / 2
         local engineY = gridOffsetY + (engine.y - 1) * config.cellSize + config.cellSize / 2 + engine.animOffset
@@ -32,6 +40,57 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
 
         e.x = e.x + dx * e.type.speed * 60 * dt
         e.y = e.y + dy * e.type.speed * 60 * dt
+        
+        -- Fire bullets if ready
+        if loadingBar.active and e.fireCooldown <= 0 and dist > 100 then
+            e.fireCooldown = e.type.fireRate
+            
+            -- Handle different bullet patterns
+            if e.type.bulletPattern == "single" then
+                enemyBullets.create(e.x, e.y, e.type, gridOffsetX, gridOffsetY)
+            elseif e.type.bulletPattern == "double" then
+                -- Create two bullets with slight angle offset
+                local offset = 0.2 -- Radians
+                local ex, ey = e.x, e.y
+                for j = -1, 1, 2 do
+                    local bulletType = {}
+                    for k, v in pairs(e.type) do bulletType[k] = v end
+                    bulletType.patternAngleOffset = offset * j
+                    enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
+                end
+            elseif e.type.bulletPattern == "triple" then
+                -- Create three bullets - one straight, two angled
+                local offset = 0.25 -- Radians
+                local ex, ey = e.x, e.y
+                for j = -1, 1 do
+                    local bulletType = {}
+                    for k, v in pairs(e.type) do bulletType[k] = v end
+                    bulletType.patternAngleOffset = offset * j
+                    enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
+                end
+            elseif e.type.bulletPattern == "spread" then
+                -- Create five bullets in a spread pattern
+                local offset = 0.15 -- Radians
+                local ex, ey = e.x, e.y
+                for j = -2, 2 do
+                    local bulletType = {}
+                    for k, v in pairs(e.type) do bulletType[k] = v end
+                    bulletType.patternAngleOffset = offset * j
+                    enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
+                end
+            elseif e.type.bulletPattern == "wave" or e.type.bulletPattern == "burst" then
+                -- Create a burst of bullets
+                local count = e.type.bulletPattern == "wave" and 3 or 6
+                local ex, ey = e.x, e.y
+                
+                for j = 1, count do
+                    local bulletType = {}
+                    for k, v in pairs(e.type) do bulletType[k] = v end
+                    bulletType.bulletSpeed = e.type.bulletSpeed * (1 - 0.1 * j) -- Slightly varied speeds
+                    enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
+                end
+            end
+        end
 
         if dist < 30 then
             table.remove(enemies.list, i)
@@ -41,15 +100,20 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
             end
         end
     end
+    
+    -- Update enemy bullets
+    enemyBullets.update(dt, gridOffsetX, gridOffsetY)
 end
 
-function enemies.spawn(checkpoint, gridOffsetX, gridOffsetY)
-    local spawnCount = math.min(5, 1 + math.floor(checkpoint * 5 / 5))
+function enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
+    -- Increased difficulty with absoluteCheckpoint
+    local baseSpawnCount = 1 + math.floor(absoluteCheckpoint * 0.5)
+    local spawnCount = math.min(7, baseSpawnCount)
 
     for i = 1, spawnCount do
         local possibleTypes = {}
         for _, type in ipairs(config.enemyTypes) do
-            if type.unlockAt <= checkpoint then
+            if type.unlockAt <= absoluteCheckpoint then
                 table.insert(possibleTypes, type)
             end
         end
@@ -81,7 +145,8 @@ function enemies.spawn(checkpoint, gridOffsetX, gridOffsetY)
                 maxHealth = type.health,
                 size = type.size,
                 animTimer = 0,
-                spawnTime = love.timer.getTime()
+                spawnTime = love.timer.getTime(),
+                fireCooldown = type.fireRate * (0.5 + love.math.random() * 0.5) -- Random initial cooldown
             })
         end
     end
@@ -89,7 +154,12 @@ end
 
 function enemies.draw(fonts, instabilityLevel)
     local currentTime = love.timer.getTime()
+    
+    -- Draw enemy bullets first (so they appear behind enemies)
+    enemyBullets.draw()
+    
     for _, e in ipairs(enemies.list) do
+        -- Spawn animation
         if currentTime - e.spawnTime < 0.5 then
             local spawnProgress = (currentTime - e.spawnTime) / 0.5
             love.graphics.setColor(e.type.color[1], e.type.color[2], e.type.color[3], spawnProgress)
@@ -105,6 +175,13 @@ function enemies.draw(fonts, instabilityLevel)
 
         love.graphics.setColor(e.type.color)
         love.graphics.circle("fill", 0, 0, e.size/2)
+        
+        -- Add a glowing outline if ready to fire
+        if e.fireCooldown <= 0.3 then
+            local glowIntensity = math.abs(math.sin(e.animTimer * 10)) * 0.5
+            love.graphics.setColor(e.type.color[1], e.type.color[2], e.type.color[3], glowIntensity)
+            love.graphics.circle("fill", 0, 0, e.size/2 * 1.2)
+        end
 
         local healthRatio = e.health / e.maxHealth
         local healthBarWidth = e.size
@@ -130,6 +207,7 @@ end
 function enemies.reset()
     enemies.list = {}
     enemies.spawnTimer = 0
+    enemyBullets.reset()
 end
 
 return enemies

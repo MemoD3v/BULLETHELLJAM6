@@ -36,3 +36,4 @@ end
 function love.resize(w, h)
     game.resize(w, h)
 end
+

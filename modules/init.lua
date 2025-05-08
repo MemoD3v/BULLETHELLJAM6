@@ -10,6 +10,7 @@ local loadingBar = require("modules.game.loadingBar")
 local camera = require("modules.game.camera")
 local ui = require("modules.game.ui")
 local gameState = require("modules.game.gameState")
+local enemyBullets = require("modules.game.enemyBullets")
 
 -- Grid positioning
 local gridOffsetX, gridOffsetY = 0, 0
@@ -38,6 +39,12 @@ end
 
 function game.update(dt)
     if gameState.isGameOver() then return end
+    
+    -- Don't update game mechanics when paused, but still update visual effects
+    if gameState.isPaused() then
+        gameState.update(dt)
+        return
+    end
 
     -- Update loading bar and checkpoints
     loadingBar.update(dt)
@@ -77,6 +84,9 @@ function game.update(dt)
     
     -- Update game state
     gameState.update(dt)
+    
+    -- Update UI elements based on player status
+    ui.updatePlayerStatus(player.getHealth())
 end
 
 function game.draw()
@@ -95,21 +105,27 @@ function game.draw()
     local showPrompt = not loadingBar.active and engine.isPlayerNearby(player.x, player.y)
     engine.draw(gridOffsetX, gridOffsetY, fonts, showPrompt)
     
-    -- Draw enemies
+    -- Draw enemies (this will also draw enemy bullets)
     enemies.draw(fonts, engine.instabilityLevel)
     
     -- Draw player
     player.draw(gridOffsetX, gridOffsetY)
     
-    -- Draw bullets
+    -- Draw player bullets
     bullets.draw()
     
-    -- Draw score
+    -- Draw score and game status
     ui.drawScore(gameState.getScore(), fonts.small)
+    ui.drawPlayerStatus(fonts.small)
     
     -- Draw game over screen if needed
     if gameState.isGameOver() then
         ui.drawGameOver(gameState.getScore(), fonts)
+    end
+    
+    -- Draw pause overlay if paused
+    if gameState.isPaused() then
+        gameState.drawPauseOverlay(fonts)
     end
     
     love.graphics.pop()
@@ -125,6 +141,11 @@ function game.keypressed(key)
         if engine.isPlayerNearby(player.x, player.y) then
             loadingBar.activate()
         end
+    end
+    
+    -- Add escape key to toggle pause
+    if key == "escape" then
+        gameState.togglePause()
     end
 end
 
