@@ -16,6 +16,9 @@ powerUps.codingCursor = 0
 powerUps.codingErrorMsg = ""
 powerUps.showTypingInterface = false
 powerUps.codingSuccessTime = 0
+powerUps.codingFailureTime = 0
+powerUps.typingTimeLimit = 10  -- Time limit in seconds to type the code
+powerUps.typingTimeRemaining = 0  -- Countdown timer
 powerUps.availablePowerUps = {}
 
 -- Define all available power-ups
@@ -136,20 +139,36 @@ powerUps.types = {
 
 -- Initialize the power-up system
 function powerUps.init(gridOffsetX, gridOffsetY)
+    -- Store grid offset for positioning calculations
     powerUps.gridOffsetX = gridOffsetX
     powerUps.gridOffsetY = gridOffsetY
     
     -- Seed the random number generator to ensure it's different each game
-    love.math.setRandomSeed(love.timer.getTime() * 10000)
+    local seed = os.time() + math.floor(love.timer.getTime() * 10000)
+    print("Seeding random with: " .. seed)
+    love.math.setRandomSeed(seed)
     
-    -- Track previously offered power-ups to avoid repeats
-    powerUps.recentlyOffered = {}
+    -- Store recently offered power-ups to avoid showing the same ones repeatedly
+    powerUps.recentlyOffered = {}  -- List of recently offered power-up names
+    powerUps.selectedPowerUp = nil  -- Initialize to nil
+    powerUps.lastCheckpoint = -1   -- Track the last checkpoint we offered at
 end
 
 -- Update the power-up system
 function powerUps.update(dt, absoluteCheckpoint)
     -- Update available power-ups based on checkpoint progress
     powerUps.updateAvailable(absoluteCheckpoint)
+    
+    -- Handle typing interface timer
+    if powerUps.showTypingInterface and powerUps.codingSuccessTime <= 0 and powerUps.codingFailureTime <= 0 then
+        powerUps.typingTimeRemaining = powerUps.typingTimeRemaining - dt
+        
+        -- Time's up!
+        if powerUps.typingTimeRemaining <= 0 then
+            powerUps.codingFailureTime = 2  -- Show failure message for 2 seconds
+            powerUps.codingErrorMsg = "TIME'S UP - HACK FAILED"
+        end
+    end
     
     -- Handle active power-ups
     if powerUps.active then
@@ -219,6 +238,15 @@ function powerUps.update(dt, absoluteCheckpoint)
                 powerUps.codingInput = ""
             end
         end
+        
+        -- Showing failure animation
+        if powerUps.codingFailureTime > 0 then
+            powerUps.codingFailureTime = powerUps.codingFailureTime - dt
+            if powerUps.codingFailureTime <= 0 then
+                powerUps.showTypingInterface = false
+                powerUps.codingInput = ""
+            end
+        end
     end
 end
 
@@ -282,6 +310,22 @@ function powerUps.draw(fonts)
         love.graphics.setColor(0, 0, 0, 0.7)
         love.graphics.rectangle("fill", 0, 0, ww, wh)
         
+        -- If showing failure message, draw special screen
+        if powerUps.codingFailureTime > 0 then
+            love.graphics.setFont(fonts.extraLarge)
+            love.graphics.setColor(1, 0.2, 0.2)
+            local failText = "HACK FAILED"
+            local failWidth = fonts.extraLarge:getWidth(failText)
+            love.graphics.print(failText, ww/2 - failWidth/2, wh/2 - 30)
+            
+            love.graphics.setFont(fonts.large)
+            love.graphics.setColor(0.9, 0.9, 0.9)
+            local reasonText = powerUps.codingErrorMsg
+            local reasonWidth = fonts.large:getWidth(reasonText)
+            love.graphics.print(reasonText, ww/2 - reasonWidth/2, wh/2 + 30)
+            return
+        end
+        
         -- Code editor box
         local boxWidth = 600
         local boxHeight = 200  -- Smaller height since simpler code
@@ -338,6 +382,36 @@ function powerUps.draw(fonts)
         local codePromptY = boxY + boxHeight/2 + 30
         local codeWidth = fonts.large:getWidth(powerUps.codingPrompt)
         love.graphics.print(powerUps.codingPrompt, codePromptX - codeWidth/2, codePromptY)
+        
+        -- Draw time remaining bar
+        local timeBarWidth = boxWidth - 40
+        local timeBarHeight = 8
+        local timeBarX = boxX + 20
+        local timeBarY = boxY + boxHeight - 30
+        local timePercentage = powerUps.typingTimeRemaining / powerUps.typingTimeLimit
+        
+        -- Background
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
+        love.graphics.rectangle("fill", timeBarX, timeBarY, timeBarWidth, timeBarHeight, 2, 2)
+        
+        -- Time bar color changes as time decreases
+        if timePercentage > 0.6 then
+            love.graphics.setColor(0.2, 0.8, 0.2)  -- Green
+        elseif timePercentage > 0.3 then
+            love.graphics.setColor(0.8, 0.7, 0.2)  -- Yellow
+        else
+            love.graphics.setColor(0.8, 0.2, 0.2)  -- Red
+        end
+        
+        -- Timer fill
+        love.graphics.rectangle("fill", timeBarX, timeBarY, timeBarWidth * timePercentage, timeBarHeight, 2, 2)
+        
+        -- Time text
+        love.graphics.setFont(fonts.small)
+        love.graphics.setColor(1, 1, 1, 0.9)
+        local timeText = math.ceil(powerUps.typingTimeRemaining) .. " SECONDS REMAINING"
+        local timeTextWidth = fonts.small:getWidth(timeText)
+        love.graphics.print(timeText, boxX + boxWidth/2 - timeTextWidth/2, timeBarY - 20)
         
         -- Draw input field
         local inputBoxY = boxY + boxHeight + 20
@@ -413,9 +487,33 @@ function powerUps.updateAvailable(absoluteCheckpoint)
     powerUps.availablePowerUps = {}
     -- Default to checkpoint 0 if nil
     local checkpoint = absoluteCheckpoint or 0
+    
+    -- Count how many power-ups are available at each checkpoint level
+    local powerUpsByLevel = {}
+    
+    -- First, add all power-ups that should be available at this checkpoint
     for _, powerUp in ipairs(powerUps.types) do
         if powerUp.unlockAt <= checkpoint then
             table.insert(powerUps.availablePowerUps, powerUp)
+            
+            -- Track power-ups by level for debugging
+            powerUpsByLevel[powerUp.unlockAt] = (powerUpsByLevel[powerUp.unlockAt] or 0) + 1
+        end
+    end
+    
+    -- Debug print the available power-ups
+    local checkpointVal = checkpoint or 0
+    local debugMsg = "Checkpoint " .. checkpointVal .. ": Available power-ups: " .. #powerUps.availablePowerUps
+    for level, count in pairs(powerUpsByLevel) do
+        debugMsg = debugMsg .. ", Level " .. level .. ": " .. count
+    end
+    print(debugMsg)
+    
+    for i, powerUp in ipairs(powerUps.availablePowerUps) do
+        if powerUp and powerUp.name and powerUp.unlockAt then
+            print(" - " .. powerUp.name .. " (unlockAt: " .. powerUp.unlockAt .. ")")
+        else
+            print(" - Invalid power-up data at index " .. i)
         end
     end
 end
@@ -428,7 +526,26 @@ function powerUps.showSelectionAt(checkpoint)
     -- If we already have an active power-up, don't offer a new one
     if powerUps.active then return end
     
-    -- Create a list of power-ups that weren't recently offered, favoring ones not recently seen
+    -- Debug the checkpoint values
+    print("Showing selection at checkpoint: " .. tostring(checkpoint) .. ", last checkpoint: " .. tostring(powerUps.lastCheckpoint))
+    
+    -- Only skip re-randomization if we already have a selected power-up AND we're showing the interface
+    -- We removed this check for now as it was preventing power-ups from appearing
+    
+    -- Save this checkpoint as the last one we've processed
+    powerUps.lastCheckpoint = checkpoint
+    
+    -- Reseed the random number generator each time we show a selection
+    -- This ensures true randomness between checkpoints
+    local checkpointValue = checkpoint or 0
+    local seed = os.time() + math.floor(love.timer.getTime() * 1000) + checkpointValue * 17
+    print("Re-seeding random at checkpoint " .. tostring(checkpointValue) .. " with seed: " .. seed)
+    love.math.setRandomSeed(seed)
+    
+    -- Force refresh available power-ups based on current checkpoint
+    powerUps.updateAvailable(checkpoint)
+    
+    -- Create a list of power-ups that weren't recently offered
     local availableOptions = {}
     for i, powerUp in ipairs(powerUps.availablePowerUps) do
         local wasRecentlyOffered = false
@@ -448,17 +565,29 @@ function powerUps.showSelectionAt(checkpoint)
     if #availableOptions == 0 then
         availableOptions = powerUps.availablePowerUps
         powerUps.recentlyOffered = {}
+        print("Reset recently offered list - all power-ups now available")
+    end
+    
+    -- Debug: print available options
+    local checkpointStr = checkpoint or "nil"
+    print("Checkpoint: " .. checkpointStr .. ", Available power-ups: " .. #powerUps.availablePowerUps .. ", Available options: " .. #availableOptions)
+    for i, powerUp in ipairs(availableOptions) do
+        print(i .. ": " .. powerUp.name .. " (unlockAt: " .. powerUp.unlockAt .. ")")
     end
     
     -- Select a random power-up from available ones
     local randomIndex = love.math.random(#availableOptions)
     powerUps.selectedPowerUp = availableOptions[randomIndex]
     
-    -- Add to recently offered list (keep last 3)
-    table.insert(powerUps.recentlyOffered, powerUps.selectedPowerUp.name)
-    if #powerUps.recentlyOffered > 3 then
-        table.remove(powerUps.recentlyOffered, 1)
+    if powerUps.selectedPowerUp and powerUps.selectedPowerUp.name then
+        print("Selected power-up: " .. powerUps.selectedPowerUp.name)
+    else
+        print("Warning: No power-up was selected")
     end
+    
+    -- Add to recently offered list - just track the last one to ensure variety
+    -- This guarantees we never get the same power-up twice in a row
+    powerUps.recentlyOffered = {powerUps.selectedPowerUp.name}
     
     -- Show typing interface
     powerUps.showTypingInterface = true
@@ -466,6 +595,10 @@ function powerUps.showSelectionAt(checkpoint)
     powerUps.codingInput = ""
     powerUps.codingCursor = 0
     powerUps.codingErrorMsg = ""
+    
+    -- Reset the typing timer
+    powerUps.typingTimeRemaining = powerUps.typingTimeLimit
+    powerUps.codingFailureTime = 0
 end
 
 -- Activate a power-up
@@ -502,14 +635,20 @@ function powerUps.reset()
     powerUps.codingInput = ""
     powerUps.codingErrorMsg = ""
     powerUps.codingSuccessTime = 0
+    powerUps.codingFailureTime = 0
+    powerUps.typingTimeRemaining = powerUps.typingTimeLimit
     powerUps.wormholeActive = false
     powerUps.crashEffectActive = false
+    powerUps.lastCheckpoint = -1  -- Reset last checkpoint tracker
     
     -- Reset recently offered power-ups
     powerUps.recentlyOffered = {}
+    powerUps.selectedPowerUp = nil
     
     -- Re-seed random generator
-    love.math.setRandomSeed(love.timer.getTime() * 10000)
+    local seed = os.time() + math.floor(love.timer.getTime() * 10000)
+    print("Reset: Re-seeding random with: " .. seed)
+    love.math.setRandomSeed(seed)
 end
 
 return powerUps
