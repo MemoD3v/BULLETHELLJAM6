@@ -1,5 +1,6 @@
 local player = {}
 local config = require("modules.game.config")
+local bullets = require("modules.game.bullets")
 
 -- Player state
 player.x = math.ceil(config.gridSize / 2)
@@ -11,24 +12,72 @@ player.invulnerabilityTimer = 0
 player.lastDamageTime = 0
 player.damageFlashTimer = 0
 
-function player.update(dt, gridSize)
+-- Power-up states
+player.autoFireEnabled = false
+player.autoFireTimer = 0
+player.autoFireCooldown = 0.1
+
+player.dashEnabled = false
+player.dashDistance = 3
+player.dashCooldown = 2
+player.currentDashCooldown = 0
+
+player.originalMoveCooldown = config.moveCooldown
+
+function player.update(dt, gridSize, gridOffsetX, gridOffsetY)
+    -- Handle dashboard cooldown if enabled
+    if player.dashEnabled and player.currentDashCooldown > 0 then
+        player.currentDashCooldown = player.currentDashCooldown - dt
+    end
+    
     -- Handle movement cooldown
     if player.moveTimer > 0 then
         player.moveTimer = player.moveTimer - dt
     else
         local moved = false
-        if love.keyboard.isDown("w") and player.y > 1 then 
-            player.y = player.y - 1 
-            moved = true
-        elseif love.keyboard.isDown("s") and player.y < gridSize then 
-            player.y = player.y + 1 
-            moved = true
-        elseif love.keyboard.isDown("a") and player.x > 1 then 
-            player.x = player.x - 1 
-            moved = true
-        elseif love.keyboard.isDown("d") and player.x < gridSize then 
-            player.x = player.x + 1 
-            moved = true
+        
+        -- Check for dash (spacebar)
+        if player.dashEnabled and player.currentDashCooldown <= 0 and love.keyboard.isDown("space") then
+            -- Determine dash direction based on the last movement key pressed
+            local dashDir = {x = 0, y = 0}
+            if love.keyboard.isDown("w") then dashDir.y = -1
+            elseif love.keyboard.isDown("s") then dashDir.y = 1
+            elseif love.keyboard.isDown("a") then dashDir.x = -1
+            elseif love.keyboard.isDown("d") then dashDir.x = 1
+            end
+            
+            -- Only dash if a direction is chosen
+            if dashDir.x ~= 0 or dashDir.y ~= 0 then
+                -- Calculate new position after dash
+                local newX = player.x + dashDir.x * player.dashDistance
+                local newY = player.y + dashDir.y * player.dashDistance
+                
+                -- Constrain to grid
+                newX = math.max(1, math.min(gridSize, newX))
+                newY = math.max(1, math.min(gridSize, newY))
+                
+                -- Apply dash
+                player.x = newX
+                player.y = newY
+                player.currentDashCooldown = player.dashCooldown
+                player.moveTimer = config.moveCooldown * 0.5  -- Half cooldown after dash
+                moved = true
+            end
+        else
+            -- Regular movement
+            if love.keyboard.isDown("w") and player.y > 1 then 
+                player.y = player.y - 1 
+                moved = true
+            elseif love.keyboard.isDown("s") and player.y < gridSize then 
+                player.y = player.y + 1 
+                moved = true
+            elseif love.keyboard.isDown("a") and player.x > 1 then 
+                player.x = player.x - 1 
+                moved = true
+            elseif love.keyboard.isDown("d") and player.x < gridSize then 
+                player.x = player.x + 1 
+                moved = true
+            end
         end
         
         if moved then 
@@ -53,9 +102,45 @@ function player.update(dt, gridSize)
     end
 end
 
-function player.draw(gridOffsetX, gridOffsetY)
+function player.draw(gridOffsetX, gridOffsetY, fonts)
     local px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
     local py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
+    
+    -- Draw dash cooldown indicator if dash is enabled
+    if player.dashEnabled then
+        local dashReadyPercentage = 1 - (player.currentDashCooldown / player.dashCooldown)
+        
+        -- Draw dash cooldown ring
+        local ringRadius = config.playerSize * 0.8
+        love.graphics.setColor(0.2, 0.2, 0.2, 0.5)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, ringRadius)
+        
+        if dashReadyPercentage < 1 then
+            -- Draw cooldown arc (partial)
+            love.graphics.setColor(0.4, 0.6, 1, 0.8)
+            local segments = 32
+            local startAngle = -math.pi/2
+            local endAngle = startAngle + (math.pi * 2 * dashReadyPercentage)
+            
+            for i = 1, segments do
+                local currAngle = startAngle + (i-1) * (endAngle - startAngle) / segments
+                local nextAngle = startAngle + i * (endAngle - startAngle) / segments
+                
+                if nextAngle <= endAngle then
+                    local x1 = px + config.playerSize/2 + math.cos(currAngle) * ringRadius
+                    local y1 = py + config.playerSize/2 + math.sin(currAngle) * ringRadius
+                    local x2 = px + config.playerSize/2 + math.cos(nextAngle) * ringRadius
+                    local y2 = py + config.playerSize/2 + math.sin(nextAngle) * ringRadius
+                    
+                    love.graphics.line(x1, y1, x2, y2)
+                end
+            end
+        else
+            -- Dash is ready, show full circle
+            love.graphics.setColor(0.4, 0.7, 1, 0.8)
+            love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, ringRadius)
+        end
+    end
     
     -- Draw player with flashing effect if invulnerable
     if player.invulnerabilityTimer > 0 and math.floor(player.invulnerabilityTimer * 10) % 2 == 0 then
@@ -91,6 +176,13 @@ function player.reset()
     player.invulnerabilityTimer = 0
     player.lastDamageTime = 0
     player.damageFlashTimer = 0
+    
+    -- Reset power-up states
+    player.autoFireEnabled = false
+    player.autoFireTimer = 0
+    player.dashEnabled = false
+    player.currentDashCooldown = 0
+    config.moveCooldown = player.originalMoveCooldown
 end
 
 function player.getScreenPosition(gridOffsetX, gridOffsetY)

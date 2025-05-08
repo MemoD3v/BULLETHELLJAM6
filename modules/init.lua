@@ -11,6 +11,7 @@ local camera = require("modules.game.camera")
 local ui = require("modules.game.ui")
 local gameState = require("modules.game.gameState")
 local enemyBullets = require("modules.game.enemyBullets")
+local powerUps = require("modules.game.powerUps")
 
 -- Grid positioning
 local gridOffsetX, gridOffsetY = 0, 0
@@ -35,6 +36,9 @@ function game.load()
     fonts.massive = love.graphics.newFont("source/fonts/Jersey10.ttf", 48)
     
     loadingBar.font = fonts.large
+    
+    -- Initialize power-ups
+    powerUps.init(gridOffsetX, gridOffsetY)
 end
 
 function game.update(dt)
@@ -45,9 +49,21 @@ function game.update(dt)
         gameState.update(dt)
         return
     end
+    
+    -- Don't update anything else if typing power-up code
+    if powerUps.showTypingInterface then
+        powerUps.update(dt, loadingBar.absoluteCheckpoint)
+        return
+    end
 
     -- Update loading bar and checkpoints
+    local prevCheckpoint = loadingBar.currentCheckpoint
     loadingBar.update(dt)
+    
+    -- Check if we reached a new checkpoint to offer a power-up
+    if loadingBar.active and loadingBar.currentCheckpoint > prevCheckpoint then
+        powerUps.showSelectionAt(loadingBar.absoluteCheckpoint)
+    end
     
     -- Calculate camera shake based on engine activity and enemies
     if loadingBar.active then
@@ -71,7 +87,7 @@ function game.update(dt)
     camera.update(dt, engine.instabilityLevel)
     
     -- Update player movement
-    player.update(dt, config.gridSize)
+    player.update(dt, config.gridSize, gridOffsetX, gridOffsetY)
     
     -- Update engine animation and state
     engine.update(dt, loadingBar.currentCheckpoint)
@@ -85,11 +101,20 @@ function game.update(dt)
     -- Update game state
     gameState.update(dt)
     
+    -- Update power-ups
+    powerUps.update(dt, loadingBar.absoluteCheckpoint)
+    
     -- Update UI elements based on player status
     ui.updatePlayerStatus(player.getHealth())
 end
 
 function game.draw()
+    -- If showing power-up typing interface, only draw that
+    if powerUps.showTypingInterface then
+        powerUps.draw(fonts)
+        return
+    end
+
     -- Apply camera shake
     love.graphics.push()
     local shakeX, shakeY = camera.getOffset()
@@ -109,7 +134,7 @@ function game.draw()
     enemies.draw(fonts, engine.instabilityLevel)
     
     -- Draw player
-    player.draw(gridOffsetX, gridOffsetY)
+    player.draw(gridOffsetX, gridOffsetY, fonts)
     
     -- Draw player bullets
     bullets.draw()
@@ -117,6 +142,9 @@ function game.draw()
     -- Draw score and game status
     ui.drawScore(gameState.getScore(), fonts.small)
     ui.drawPlayerStatus(fonts.small)
+    
+    -- Draw power-ups
+    powerUps.draw(fonts)
     
     -- Draw game over screen if needed
     if gameState.isGameOver() then
@@ -132,6 +160,12 @@ function game.draw()
 end
 
 function game.keypressed(key)
+    -- Handle power-up typing interface keypresses
+    if powerUps.showTypingInterface then
+        powerUps.keypressed(key)
+        return
+    end
+
     if gameState.isGameOver() and key == "r" then
         game.reset()
         return
@@ -150,25 +184,53 @@ function game.keypressed(key)
 end
 
 function game.mousepressed(x, y, button)
-    if button == 1 and not gameState.isGameOver() then
+    if powerUps.showTypingInterface then return end
+    if not loadingBar.active or gameState.isPaused() or gameState.isGameOver() then return end
+    
+    if button == 1 then  -- Left click
         local px, py = player.getScreenPosition(gridOffsetX, gridOffsetY)
         bullets.create(px, py, x, y)
     end
 end
 
 function game.reset()
+    -- Reset all game components
     player.reset()
+    enemies.reset()
+    bullets.reset()
+    enemyBullets.reset()
     loadingBar.reset()
     engine.reset()
-    camera.reset()
-    bullets.reset()
-    enemies.reset()
     gameState.reset()
+    ui.reset()
+    
+    -- Safely reset powerUps if the function exists
+    if powerUps and type(powerUps.reset) == "function" then
+        powerUps.reset()
+    else
+        -- Manual reset of critical powerUps state if the function isn't available
+        if powerUps then
+            powerUps.active = nil
+            powerUps.showTypingInterface = false
+            powerUps.codingInput = ""
+            powerUps.codingErrorMsg = ""
+            powerUps.codingSuccessTime = 0
+            powerUps.wormholeActive = false
+            powerUps.crashEffectActive = false
+        end
+    end
 end
 
 function game.resize(w, h)
     gridOffsetX = (w - config.gridSize * config.cellSize) / 2
     gridOffsetY = (h - config.gridSize * config.cellSize) / 2 + 40
+end
+
+function game.textinput(text)
+    -- Forward text input to the power-up system
+    if powerUps.showTypingInterface then
+        powerUps.textinput(text)
+    end
 end
 
 return game

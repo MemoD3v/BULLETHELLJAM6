@@ -33,6 +33,10 @@ function love.keypressed(key)
     game.keypressed(key)
 end
 
+function love.textinput(text)
+    game.textinput(text)
+end
+
 function love.resize(w, h)
     game.resize(w, h)
 end

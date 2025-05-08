@@ -98,6 +98,13 @@ function ui.drawPlayerStatus(font)
     end
 end
 
+function ui.reset()
+    -- Reset UI state
+    ui.playerHealth = 0
+    ui.playerMaxHealth = 100
+    ui.playerStatusFadeTimer = 0
+end
+
 function ui.drawGameOver(score, fonts)
     -- Semi-transparent overlay
     love.graphics.setColor(0, 0, 0, 0.8)

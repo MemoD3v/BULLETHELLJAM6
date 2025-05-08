@@ -10,6 +10,9 @@ engine.enemiesTouched = 0
 engine.pulseTimer = 0
 engine.pulseScale = 1
 engine.instabilityLevel = 0
+engine.shielded = false
+engine.shieldTimer = 0
+engine.shieldPulse = 0
 
 function engine.update(dt, checkpointLevel)
     engine.animTimer = engine.animTimer + dt
@@ -19,11 +22,26 @@ function engine.update(dt, checkpointLevel)
 
     engine.pulseTimer = engine.pulseTimer + dt
     engine.pulseScale = 1 + (0.1 + engine.instabilityLevel * 0.1) * math.sin(engine.pulseTimer * (3 + engine.instabilityLevel * 3))
+    
+    -- Update shield effect
+    if engine.shielded then
+        engine.shieldTimer = engine.shieldTimer + dt
+        engine.shieldPulse = 0.5 + 0.5 * math.sin(engine.shieldTimer * 5)
+    end
 end
 
 function engine.draw(gridOffsetX, gridOffsetY, fonts, showPrompt)
     local ex = gridOffsetX + (engine.x - 1) * config.cellSize + config.cellSize / 2
     local ey = gridOffsetY + (engine.y - 1) * config.cellSize + config.cellSize / 2 + engine.animOffset
+
+    -- Draw shield if active
+    if engine.shielded then
+        local shieldSize = 60 + engine.shieldPulse * 10
+        love.graphics.setColor(0.3, 0.7, 1, 0.3 + engine.shieldPulse * 0.2)
+        love.graphics.circle("fill", ex, ey, shieldSize)
+        love.graphics.setColor(0.4, 0.8, 1, 0.6 + engine.shieldPulse * 0.4)
+        love.graphics.circle("line", ex, ey, shieldSize)
+    end
 
     love.graphics.push()
     love.graphics.translate(ex, ey)
@@ -59,6 +77,9 @@ function engine.reset()
     engine.pulseTimer = 0
     engine.pulseScale = 1
     engine.instabilityLevel = 0
+    engine.shielded = false
+    engine.shieldTimer = 0
+    engine.shieldPulse = 0
 end
 
 function engine.isPlayerNearby(playerX, playerY)
