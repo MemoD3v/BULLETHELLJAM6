@@ -9,25 +9,25 @@ config.gridColor = {0.5, 0.5, 0.5}
 config.playerSize = 50
 config.playerColor = {1, 1, 1}
 config.moveCooldown = 0.15
-config.playerMaxHealth = 100
-config.playerHealthRegenRate = 0.5 -- Health regeneration per second when not taking damage
-config.playerDamageInvulnerabilityTime = 1.0 -- Seconds of invulnerability after taking damage
+config.playerMaxHealth = 120  -- Increased from 100
+config.playerHealthRegenRate = 0.8  -- Increased from 0.5
+config.playerDamageInvulnerabilityTime = 1.5  -- Increased from 1.0
 
 -- Bullet configuration
-config.bulletSpeed = 400
+config.bulletSpeed = 450  -- Increased from 400
 config.bulletWidth = 12
 config.bulletHeight = 4
 config.bulletColor = {1, 1, 1}
-config.bulletDamage = 25
+config.bulletDamage = 30  -- Increased from 25
 
 -- Enemy bullet configuration
-config.enemyBulletSpeed = 200
-config.enemyBulletSize = 6
-config.enemyBulletDamage = 10
-config.enemyFireRate = 1.5 -- Default fire rate in seconds
+config.enemyBulletSpeed = 180  -- Reduced from 200
+config.enemyBulletSize = 5    -- Reduced from 6
+config.enemyBulletDamage = 8  -- Reduced from 10
+config.enemyFireRate = 1.8    -- Increased from 1.5 (slower firing)
 
 -- Enemy configuration
-config.enemySpawnInterval = 3.0
+config.enemySpawnInterval = 3.5  -- Increased from 3.0 (slower spawn rate)
 config.enemyTypes = {
     {
         name = "Anti-Cheat",
@@ -66,16 +66,16 @@ config.enemyTypes = {
     {
         name = "Moderators",
         color = {0.8, 0.5, 0.2},
-        health = 120,
-        maxHealth = 120,
-        speed = 0.6,
+        health = 100,        -- Reduced from 120
+        maxHealth = 100,     -- Reduced from 120
+        speed = 0.5,         -- Reduced from 0.6
         unlockAt = 2,
         size = 40,
-        damage = 20,
-        score = 30,
+        damage = 15,         -- Reduced from 20
+        score = 35,          -- Increased from 30
         tier = 3,
-        fireRate = 2.0,
-        bulletSpeed = 200,
+        fireRate = 2.2,      -- Increased from 2.0 (slower firing)
+        bulletSpeed = 180,   -- Reduced from 200
         bulletColor = {1, 0.5, 0.2},
         bulletSize = 7,
         bulletPattern = "double"
@@ -83,16 +83,16 @@ config.enemyTypes = {
     {
         name = "Admins",
         color = {0.5, 0.2, 0.8},
-        health = 150,
-        maxHealth = 150,
-        speed = 0.8,
+        health = 130,       -- Reduced from 150
+        maxHealth = 130,    -- Reduced from 150
+        speed = 0.7,        -- Reduced from 0.8
         unlockAt = 3,
         size = 45,
-        damage = 25,
-        score = 40,
+        damage = 20,        -- Reduced from 25
+        score = 45,         -- Increased from 40
         tier = 4,
-        fireRate = 1.8,
-        bulletSpeed = 220,
+        fireRate = 2.0,     -- Increased from 1.8 (slower firing)
+        bulletSpeed = 200,  -- Reduced from 220
         bulletColor = {0.7, 0.2, 1},
         bulletSize = 8,
         bulletPattern = "triple"
@@ -151,7 +151,7 @@ config.enemyTypes = {
 }
 
 -- Engine configuration
-config.engineMaxEnemiesBeforeGameOver = 3
+config.engineMaxEnemiesBeforeGameOver = 4  -- Increased from 3
 config.engineUnstableAmplitude = 2
 
 -- Loading bar configuration

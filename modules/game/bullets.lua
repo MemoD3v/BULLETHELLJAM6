@@ -3,6 +3,7 @@ local config = require("modules.game.config")
 local gameState = require("modules.game.gameState")
 
 bullets.list = {}
+bullets.damageMultiplier = 1.0  -- Default multiplier, increased by Rapid Fire power-up
 
 -- Create a new player bullet
 function bullets.create(x, y, targetX, targetY)
@@ -42,7 +43,9 @@ function bullets.update(dt, enemies)
             local e = enemies[j]
             local dist = math.sqrt((b.x - e.x)^2 + (b.y - e.y)^2)
             if dist < e.size/2 + config.bulletWidth/2 then
-                e.health = e.health - config.bulletDamage
+                -- Apply damage multiplier (from Rapid Fire power-up)
+                local damage = config.bulletDamage * bullets.damageMultiplier
+                e.health = e.health - damage
                 if e.health <= 0 then
                     gameState.increaseScore(e.type.score)
                     table.remove(enemies, j)

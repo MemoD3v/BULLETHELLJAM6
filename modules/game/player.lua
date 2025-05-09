@@ -3,28 +3,48 @@ local config = require("modules.game.config")
 local bullets = require("modules.game.bullets")
 
 -- Player state
-player.x = math.ceil(config.gridSize / 2)
-player.y = math.ceil(config.gridSize / 2) + 1
-player.moveTimer = 0
+player.x = 4
+player.y = 4
 player.health = config.playerMaxHealth
-player.maxHealth = config.playerMaxHealth
+player.maxHealth = config.playerMaxHealth -- Initialize maxHealth to fix nil error
 player.invulnerabilityTimer = 0
 player.lastDamageTime = 0
-player.damageFlashTimer = 0
+player.damageFlashTimer = 0 -- Initialize damageFlashTimer to fix nil error
+player.score = 0
 
--- Power-up states
+-- Auto-fire power-up
 player.autoFireEnabled = false
+player.autoFireCooldown = 0
 player.autoFireTimer = 0
-player.autoFireCooldown = 0.1
 
+-- Movement and dash
+player.moveCooldownTimer = 0
+player.moveTimer = 0 -- Initialize moveTimer to fix the nil comparison error
 player.dashEnabled = false
-player.dashDistance = 3
-player.dashCooldown = 2
+player.dashCooldown = 0
 player.currentDashCooldown = 0
+player.isDashing = false
+player.dashDirection = nil
+player.dashProgress = 0
+player.dashDuration = 0.15 -- Seconds to complete a dash
 
-player.originalMoveCooldown = config.moveCooldown
+-- Shield power-up
+player.shieldEnabled = false
+
+-- Nuke power-up
+player.nukeEnabled = false
+player.nukeUsed = false
+player.nukeEffectTime = 0
+
+-- Rapid fire power-up
+player.fireRateMultiplier = 1.0 -- Default is no multiplier
 
 function player.update(dt, gridSize, gridOffsetX, gridOffsetY)
+    -- Update nuke effect timer if active
+    if player.nukeEffectTime and player.nukeEffectTime > 0 then
+        player.nukeEffectTime = player.nukeEffectTime - dt
+    end
+    
     -- Handle dashboard cooldown if enabled
     if player.dashEnabled and player.currentDashCooldown > 0 then
         player.currentDashCooldown = player.currentDashCooldown - dt
@@ -106,6 +126,23 @@ function player.draw(gridOffsetX, gridOffsetY, fonts)
     local px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
     local py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
     
+    -- Draw shield if active
+    if player.shieldEnabled then
+        -- Draw shield effect
+        local shieldSize = config.playerSize * 1.5
+        local shieldX = px + config.playerSize/2 - shieldSize/2
+        local shieldY = py + config.playerSize/2 - shieldSize/2
+        
+        -- Pulsating effect
+        local pulseAmount = 0.2 + math.sin(love.timer.getTime() * 5) * 0.1
+        
+        -- Draw shield
+        love.graphics.setColor(0.3, 0.8, 0.9, pulseAmount + 0.2)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, shieldSize/2 + 2)
+        love.graphics.setColor(0.3, 0.8, 0.9, pulseAmount * 0.5)
+        love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, shieldSize/2)
+    end
+    
     -- Draw dash cooldown indicator if dash is enabled
     if player.dashEnabled then
         local dashReadyPercentage = 1 - (player.currentDashCooldown / player.dashCooldown)
@@ -154,6 +191,23 @@ function player.draw(gridOffsetX, gridOffsetY, fonts)
     
     love.graphics.rectangle("fill", px, py, config.playerSize, config.playerSize)
     
+    -- Draw nuke explosion effect if active
+    if player.nukeEffectTime and player.nukeEffectTime > 0 then
+        local effectProgress = 1 - (player.nukeEffectTime / 0.5) -- 0.5 seconds is full duration
+        local maxRadius = 800 -- Maximum radius of the explosion
+        local currentRadius = maxRadius * effectProgress
+        
+        -- Draw expanding explosion wave
+        local alpha = 0.8 - effectProgress * 0.8 -- Fade out as it expands
+        love.graphics.setColor(1, 0.4, 0.1, alpha)
+        love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, currentRadius)
+        
+        -- Draw bright inner ring
+        love.graphics.setColor(1, 0.8, 0.2, alpha * 1.5)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.9)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.8)
+    end
+    
     -- Draw health bar
     local healthBarWidth = config.playerSize
     local healthBarHeight = 5
@@ -182,13 +236,55 @@ function player.reset()
     player.autoFireTimer = 0
     player.dashEnabled = false
     player.currentDashCooldown = 0
-    config.moveCooldown = player.originalMoveCooldown
+    player.shieldEnabled = false
+    player.nukeEnabled = false
+    player.nukeUsed = false
+    player.nukeEffectTime = 0
+    player.fireRateMultiplier = 1.0
 end
 
 function player.getScreenPosition(gridOffsetX, gridOffsetY)
     local px = gridOffsetX + (player.x - 1) * config.cellSize + config.cellSize / 2
     local py = gridOffsetY + (player.y - 1) * config.cellSize + config.cellSize / 2
     return px, py
+end
+
+-- Handle key press for nuke and dash abilities
+function player.keypressed(key, enemiesList)
+    -- Handle dash
+    if player.dashEnabled and key == "space" and player.currentDashCooldown <= 0 and not player.isDashing then
+        -- We'll keep using the existing dash logic if present
+    end
+    
+    -- Handle nuke
+    if player.nukeEnabled and key == "space" and not player.nukeUsed then
+        player.nukeUsed = true
+        
+        -- Clear all enemy bullets
+        if bullets.enemyBullets then
+            bullets.enemyBullets = {}
+        end
+        
+        -- Clear all regular bullets from the screen
+        bullets.list = {}
+        
+        -- Damage all enemies on screen
+        if enemiesList then
+            for i = #enemiesList, 1, -1 do
+                enemiesList[i].health = 0  -- Kill the enemy
+            end
+        end
+        
+        -- Play explosion sound effect
+        local sounds = require("modules.init").getSounds()
+        if sounds and sounds.playerShoot then
+            sounds.playerShoot:stop()
+            sounds.playerShoot:play()
+        end
+        
+        -- Create visual effect (will be handled in main draw loop)
+        player.nukeEffectTime = 0.5  -- Duration of visual effect in seconds
+    end
 end
 
 function player.takeDamage(amount)

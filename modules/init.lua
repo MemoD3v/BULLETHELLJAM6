@@ -212,23 +212,33 @@ function game.keypressed(key)
         return
     end
 
+    -- Handle game reset
     if gameState.isGameOver() and key == "r" then
         game.reset()
         return
     end
-
+    
+    -- Handle escape to pause/unpause (consolidated from duplicate code)
+    if key == "escape" then
+        gameState.togglePause()
+        return
+    end
+    
+    -- Engine activation with 'e' key
     if key == "e" and not loadingBar.active and not gameState.isGameOver() then
         if engine.isPlayerNearby(player.x, player.y) then
             loadingBar.activate()
+            return
         end
     end
     
-    -- Add escape key to toggle pause
-    if key == "escape" then
-        gameState.togglePause()
+    -- Handle player special abilities (nuke, dash, etc.)
+    -- Only process gameplay inputs when the game is active
+    if loadingBar.active and not gameState.isPaused() and not gameState.isGameOver() then
+        player.keypressed(key, enemies.list)
     end
     
-    -- Volume control shortcuts
+    -- Volume control shortcuts (these work regardless of game state)
     if key == "=" or key == "+" then  -- Increase master volume
         game.adjustVolume("master", 0.1)
     elseif key == "-" then  -- Decrease master volume
@@ -253,6 +263,8 @@ function game.mousepressed(x, y, button)
         bullets.create(px, py, x, y)
     end
 end
+
+-- Special keys handling is now consolidated in the main keypressed function above
 
 -- Volume control functions
 function game.adjustVolume(volumeType, amount)
