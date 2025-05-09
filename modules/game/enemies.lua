@@ -88,6 +88,12 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
                     for k, v in pairs(e.type) do bulletType[k] = v end
                     bulletType.bulletSpeed = e.type.bulletSpeed * (1 - 0.1 * j) -- Slightly varied speeds
                     enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
+                    
+                    -- Play enemy shoot sound
+                    local sounds = require("modules.init").getSounds()
+                    if sounds and sounds.enemyShoot then
+                        sounds.enemyShoot:clone():play()
+                    end
                 end
             end
         end
@@ -96,7 +102,20 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
             table.remove(enemies.list, i)
             engine.incrementEnemies()
             if engine.enemiesTouched >= config.engineMaxEnemiesBeforeGameOver then
+                -- Play engine death sound
+                local sounds = require("modules.init").getSounds()
+                if sounds and sounds.playerDeath then
+                    sounds.playerDeath:stop()
+                    sounds.playerDeath:play()
+                end
+                
                 gameState.setGameOver(true)
+            end
+            
+            -- Play enemy death sound
+            local sounds = require("modules.init").getSounds()
+            if sounds and sounds.enemyDeath then
+                sounds.enemyDeath:clone():play()
             end
         end
     end

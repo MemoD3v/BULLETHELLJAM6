@@ -4,17 +4,27 @@ local gameState = require("modules.game.gameState")
 
 bullets.list = {}
 
+-- Create a new player bullet
 function bullets.create(x, y, targetX, targetY)
+    -- Play bullet sound
+    local sounds = require("modules.init").getSounds()
+    if sounds and sounds.playerShoot then
+        sounds.playerShoot:stop() -- Stop any currently playing instance
+        sounds.playerShoot:play()
+    end
+    
+    -- Calculate direction
     local dx = targetX - x
     local dy = targetY - y
-    local len = math.sqrt(dx * dx + dy * dy)
-    dx, dy = dx / len, dy / len
+    local length = math.sqrt(dx * dx + dy * dy)
+    local normalizedDx = dx / length
+    local normalizedDy = dy / length
     
     table.insert(bullets.list, {
         x = x,
         y = y,
-        dx = dx,
-        dy = dy,
+        dx = normalizedDx,  -- Use normalized direction vector
+        dy = normalizedDy,  -- Use normalized direction vector
         angle = math.atan2(dy, dx),
         time = 0
     })

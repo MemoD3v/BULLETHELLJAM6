@@ -5,6 +5,10 @@ ui.playerHealth = 0
 ui.playerMaxHealth = 100
 ui.playerStatusFadeTimer = 0
 
+-- Volume display UI
+ui.volumeDisplayTimer = 0
+ui.volumeDisplayDuration = 2.0  -- How long to show volume display after adjustment
+
 function ui.drawGrid(gridOffsetX, gridOffsetY, gridSize, cellSize, gridColor)
     love.graphics.setColor(gridColor)
     love.graphics.setLineWidth(2)
@@ -98,11 +102,72 @@ function ui.drawPlayerStatus(font)
     end
 end
 
+function ui.showVolumeDisplay()
+    ui.volumeDisplayTimer = ui.volumeDisplayDuration
+end
+
+function ui.drawVolumeDisplay(font, volume)
+    if ui.volumeDisplayTimer <= 0 then return end
+    
+    ui.volumeDisplayTimer = ui.volumeDisplayTimer - love.timer.getDelta()
+    
+    -- Background panel
+    local displayWidth = 200
+    local displayHeight = 100
+    local displayX = love.graphics.getWidth() / 2 - displayWidth / 2
+    local displayY = love.graphics.getHeight() - displayHeight - 20
+    
+    -- Fade out effect near the end
+    local alpha = math.min(1, ui.volumeDisplayTimer)
+    
+    -- Draw background
+    love.graphics.setColor(0, 0, 0, 0.7 * alpha)
+    love.graphics.rectangle("fill", displayX, displayY, displayWidth, displayHeight)
+    love.graphics.setColor(0.4, 0.4, 0.4, alpha)
+    love.graphics.rectangle("line", displayX, displayY, displayWidth, displayHeight)
+    
+    -- Draw volume information
+    love.graphics.setFont(font)
+    love.graphics.setColor(1, 1, 1, alpha)
+    
+    -- Title
+    love.graphics.print("VOLUME SETTINGS", displayX + 10, displayY + 10)
+    
+    -- Master volume
+    local masterBarWidth = displayWidth - 20
+    local barHeight = 10
+    local barY = displayY + 40
+    
+    love.graphics.print("Master: " .. math.floor(volume.master * 100) .. "%", displayX + 10, barY - 15)
+    love.graphics.setColor(0.2, 0.2, 0.2, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth, barHeight)
+    love.graphics.setColor(0.8, 0.8, 0.8, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth * volume.master, barHeight)
+    
+    -- Music volume
+    barY = displayY + 60
+    love.graphics.setColor(1, 1, 1, alpha)
+    love.graphics.print("Music: " .. math.floor(volume.music * 100) .. "%", displayX + 10, barY - 15)
+    love.graphics.setColor(0.2, 0.2, 0.2, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth, barHeight)
+    love.graphics.setColor(0.6, 0.8, 1, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth * volume.music, barHeight)
+    
+    -- SFX volume
+    barY = displayY + 80
+    love.graphics.setColor(1, 1, 1, alpha)
+    love.graphics.print("SFX: " .. math.floor(volume.sfx * 100) .. "%", displayX + 10, barY - 15)
+    love.graphics.setColor(0.2, 0.2, 0.2, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth, barHeight)
+    love.graphics.setColor(1, 0.8, 0.6, alpha)
+    love.graphics.rectangle("fill", displayX + 10, barY, masterBarWidth * volume.sfx, barHeight)
+end
+
 function ui.reset()
-    -- Reset UI state
     ui.playerHealth = 0
     ui.playerMaxHealth = 100
     ui.playerStatusFadeTimer = 0
+    ui.volumeDisplayTimer = 0
 end
 
 function ui.drawGameOver(score, fonts)

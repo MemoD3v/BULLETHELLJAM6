@@ -24,6 +24,27 @@ local fonts = {
     massive = nil
 }
 
+-- Game sounds
+local sounds = {
+    musicBeforeStart = nil,    -- Before payload starts
+    musicAfterStart = nil,     -- After payload starts
+    powerUp = nil,             -- Power-up acquired
+    enemyDeath = nil,          -- Enemy death
+    enemyShoot = nil,          -- Enemy shooting
+    checkpoint = nil,          -- Checkpoint reached
+    playerDeath = nil,         -- Player or engine death
+    playerHurt = nil,          -- Player damage
+    playerShoot = nil,         -- Player shoot
+    phaseComplete = nil        -- Phase completed
+}
+
+-- Volume controls
+local volume = {
+    master = 0.8,  -- 0.0 to 1.0
+    music = 0.7,   -- relative to master
+    sfx = 1.0      -- relative to master
+}
+
 function game.load()
     local ww, wh = love.graphics.getDimensions()
     gridOffsetX = (ww - config.gridSize * config.cellSize) / 2
@@ -37,8 +58,30 @@ function game.load()
     
     loadingBar.font = fonts.large
     
+    -- Load sound effects
+    sounds.musicBeforeStart = love.audio.newSource("source/sfx/Before-Start {{ Glitch in the Grid.mp3", "stream")
+    sounds.musicAfterStart = love.audio.newSource("source/sfx/After-Start }} Glitch in My Veins.mp3", "stream")
+    sounds.powerUp = love.audio.newSource("source/sfx/PowerUp.wav", "static")
+    sounds.enemyDeath = love.audio.newSource("source/sfx/bad person ded.wav", "static")
+    sounds.enemyShoot = love.audio.newSource("source/sfx/bad pew pew pew.wav", "static")
+    sounds.checkpoint = love.audio.newSource("source/sfx/checkpoint.wav", "static")
+    sounds.playerDeath = love.audio.newSource("source/sfx/ded player- ded engine.wav", "static")
+    sounds.playerHurt = love.audio.newSource("source/sfx/hurt.wav", "static")
+    sounds.playerShoot = love.audio.newSource("source/sfx/pew-pew-pew.wav", "static")
+    sounds.phaseComplete = love.audio.newSource("source/sfx/phasedone.wav", "static")
+    
+    -- Set loop property for music
+    sounds.musicBeforeStart:setLooping(true)
+    sounds.musicAfterStart:setLooping(true)
+    
+    -- Apply volume settings to all sounds
+    game.applyVolumeSettings()
+    
     -- Initialize power-ups
     powerUps.init(gridOffsetX, gridOffsetY)
+    
+    -- Start the initial music
+    sounds.musicBeforeStart:play()
 end
 
 function game.update(dt)
@@ -156,6 +199,9 @@ function game.draw()
         gameState.drawPauseOverlay(fonts)
     end
     
+    -- Draw volume display if active
+    ui.drawVolumeDisplay(fonts.small, volume)
+    
     love.graphics.pop()
 end
 
@@ -181,6 +227,21 @@ function game.keypressed(key)
     if key == "escape" then
         gameState.togglePause()
     end
+    
+    -- Volume control shortcuts
+    if key == "=" or key == "+" then  -- Increase master volume
+        game.adjustVolume("master", 0.1)
+    elseif key == "-" then  -- Decrease master volume
+        game.adjustVolume("master", -0.1)
+    elseif key == "[" then  -- Decrease music volume
+        game.adjustVolume("music", -0.1)
+    elseif key == "]" then  -- Increase music volume
+        game.adjustVolume("music", 0.1)
+    elseif key == ";" then  -- Decrease SFX volume
+        game.adjustVolume("sfx", -0.1)
+    elseif key == "'" then  -- Increase SFX volume
+        game.adjustVolume("sfx", 0.1)
+    end
 end
 
 function game.mousepressed(x, y, button)
@@ -191,6 +252,51 @@ function game.mousepressed(x, y, button)
         local px, py = player.getScreenPosition(gridOffsetX, gridOffsetY)
         bullets.create(px, py, x, y)
     end
+end
+
+-- Volume control functions
+function game.adjustVolume(volumeType, amount)
+    if volumeType == "master" then
+        volume.master = math.max(0, math.min(1, volume.master + amount))
+        game.applyVolumeSettings()
+    elseif volumeType == "music" then
+        volume.music = math.max(0, math.min(1, volume.music + amount))
+        game.applyVolumeSettings()
+    elseif volumeType == "sfx" then
+        volume.sfx = math.max(0, math.min(1, volume.sfx + amount))
+        game.applyVolumeSettings()
+    end
+    
+    -- Show volume display UI
+    ui.showVolumeDisplay()
+end
+
+function game.applyVolumeSettings()
+    -- Apply to music
+    local musicVolume = volume.master * volume.music
+    if sounds.musicBeforeStart then sounds.musicBeforeStart:setVolume(musicVolume) end
+    if sounds.musicAfterStart then sounds.musicAfterStart:setVolume(musicVolume) end
+    
+    -- Apply to SFX
+    local sfxVolume = volume.master * volume.sfx
+    if sounds.powerUp then sounds.powerUp:setVolume(sfxVolume) end
+    if sounds.enemyDeath then sounds.enemyDeath:setVolume(sfxVolume) end
+    if sounds.enemyShoot then sounds.enemyShoot:setVolume(sfxVolume) end
+    if sounds.checkpoint then sounds.checkpoint:setVolume(sfxVolume) end
+    if sounds.playerDeath then sounds.playerDeath:setVolume(sfxVolume) end
+    if sounds.playerHurt then sounds.playerHurt:setVolume(sfxVolume) end
+    if sounds.playerShoot then sounds.playerShoot:setVolume(sfxVolume) end
+    if sounds.phaseComplete then sounds.phaseComplete:setVolume(sfxVolume) end
+end
+
+-- Get current volume settings
+function game.getVolume()
+    return volume
+end
+
+-- Expose sounds to other modules
+function game.getSounds()
+    return sounds
 end
 
 function game.reset()
@@ -219,6 +325,10 @@ function game.reset()
             powerUps.crashEffectActive = false
         end
     end
+    
+    -- Reset music
+    sounds.musicAfterStart:stop()
+    sounds.musicBeforeStart:play()
 end
 
 function game.resize(w, h)

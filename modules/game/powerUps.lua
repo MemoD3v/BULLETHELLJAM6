@@ -355,7 +355,18 @@ function powerUps.draw(fonts)
             
             love.graphics.setFont(fonts.large)
             love.graphics.setColor(0.9, 0.9, 0.9)
-            local powerUpText = "POWER UP ACTIVATED: " .. powerUps.active.name
+            local powerUpText = "POWER UP ACTIVATED: "
+            
+            -- Check if powerUps.active exists before accessing its name
+            if powerUps.active and powerUps.active.name then
+                powerUpText = powerUpText .. powerUps.active.name
+            elseif powerUps.selectedPowerUp and powerUps.selectedPowerUp.name then
+                -- Fallback to the selected power-up if active one isn't set yet
+                powerUpText = powerUpText .. powerUps.selectedPowerUp.name
+            else
+                powerUpText = powerUpText .. "Unknown"
+            end
+            
             local powerUpWidth = fonts.large:getWidth(powerUpText)
             love.graphics.print(powerUpText, ww/2 - powerUpWidth/2, wh/2 + 40)
             return
@@ -602,17 +613,33 @@ function powerUps.showSelectionAt(checkpoint)
 end
 
 -- Activate a power-up
-function powerUps.activate(powerUp)
+function powerUps.activate(powerUpName)
+    -- Play power-up activation sound
+    local sounds = require("modules.init").getSounds()
+    if sounds and sounds.powerUp then
+        sounds.powerUp:stop()
+        sounds.powerUp:play()
+    end
+    
+    -- Find the power-up
+    local powerUpToActivate = nil
+    for _, powerUp in ipairs(powerUps.types) do
+        if powerUp.name == powerUpName then
+            powerUpToActivate = powerUp
+            break
+        end
+    end
+    
     if powerUps.active then
         powerUps.deactivate()
     end
     
-    powerUps.active = powerUp
+    powerUps.active = powerUpToActivate
     powerUps.activeTime = 0
     
     -- Call the power-up's activate function
-    if powerUp.activate then
-        powerUp.activate(powerUps.gridOffsetX, powerUps.gridOffsetY)
+    if powerUpToActivate and powerUpToActivate.activate then
+        powerUpToActivate.activate(powerUps.gridOffsetX, powerUps.gridOffsetY)
     end
 end
 

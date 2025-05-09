@@ -22,6 +22,7 @@ loadingBar.tickFlash = nil
 loadingBar.phaseTransitionActive = false
 loadingBar.phaseTransitionTime = 0
 loadingBar.phaseTransitionDuration = 3
+loadingBar.absoluteCheckpointOffset = 0 -- Initialize offset to avoid nil arithmetic
 
 loadingBar.checkpointFlash = nil
 
@@ -56,20 +57,46 @@ function loadingBar.update(dt)
         local newCheckpoint = math.floor(loadingBar.progress * loadingBar.checkpointsPerPhase)
         
         -- Calculate absolute checkpoint (0-9) for difficulty scaling
-        local absoluteCheckpoint = (loadingBar.currentPhase - 1) * loadingBar.checkpointsPerPhase + newCheckpoint
+        local oldCheckpoint = loadingBar.currentCheckpoint
+        loadingBar.currentCheckpoint = math.floor(loadingBar.progress * loadingBar.totalCheckpoints)
+        loadingBar.absoluteCheckpoint = loadingBar.absoluteCheckpointOffset + loadingBar.currentCheckpoint
         
-        if newCheckpoint > loadingBar.currentCheckpoint then
-            loadingBar.currentCheckpoint = newCheckpoint
+        -- Play checkpoint sound if reached a new checkpoint
+        if loadingBar.currentCheckpoint > oldCheckpoint then
+            local sounds = require("modules.init").getSounds()
+            if sounds and sounds.checkpoint then
+                sounds.checkpoint:stop()
+                sounds.checkpoint:play()
+            end
+            
+            -- Switch to after-start music if we're past the first checkpoint and just starting
+            if loadingBar.absoluteCheckpoint > 0 and oldCheckpoint == 0 then
+                if sounds and sounds.musicBeforeStart and sounds.musicAfterStart then
+                    sounds.musicBeforeStart:stop()
+                    sounds.musicAfterStart:play()
+                end
+            end
+        end
+        
+        -- Return true if we hit a new checkpoint
+        if loadingBar.currentCheckpoint > oldCheckpoint then
             loadingBar.checkpointTextAlpha = 1
             loadingBar.checkpointTextTimer = 0
             loadingBar.checkpointReached = true
 
-            camera.shake(2 + absoluteCheckpoint * 1.5, 1.5)
+            camera.shake(2 + loadingBar.absoluteCheckpoint * 1.5, 1.5)
             loadingBar.checkpointFlash = 0.3
         end
 
         -- Phase transition check
         if loadingBar.progress >= 1 and loadingBar.currentPhase < loadingBar.totalPhases then
+            -- Play phase completion sound
+            local sounds = require("modules.init").getSounds()
+            if sounds and sounds.phaseComplete then
+                sounds.phaseComplete:stop()
+                sounds.phaseComplete:play()
+            end
+            
             loadingBar.phaseTransitionActive = true
             loadingBar.phaseTransitionTime = 0
             loadingBar.checkpointTextAlpha = 1
@@ -224,6 +251,7 @@ function loadingBar.reset()
     loadingBar.checkpointFlash = nil
     loadingBar.phaseTransitionActive = false
     loadingBar.phaseTransitionTime = 0
+    loadingBar.absoluteCheckpointOffset = 0 -- Reset the offset on game reset
 end
 
 return loadingBar

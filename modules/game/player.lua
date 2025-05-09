@@ -194,17 +194,30 @@ end
 function player.takeDamage(amount)
     -- Don't take damage if invulnerable
     if player.invulnerabilityTimer > 0 then
-        return false
+        return
     end
     
-    -- Apply damage
-    player.health = math.max(0, player.health - amount)
+    -- Play hurt sound
+    local sounds = require("modules.init").getSounds()
+    if sounds and sounds.playerHurt then
+        sounds.playerHurt:stop() -- Stop any currently playing instance
+        sounds.playerHurt:play()
+    end
+    
+    player.health = player.health - amount
     player.invulnerabilityTimer = config.playerDamageInvulnerabilityTime
     player.lastDamageTime = love.timer.getTime()
     player.damageFlashTimer = 0.2
     
     -- Check if player died
     if player.health <= 0 then
+        -- Play death sound
+        local sounds = require("modules.init").getSounds()
+        if sounds and sounds.playerDeath then
+            sounds.playerDeath:stop()
+            sounds.playerDeath:play()
+        end
+        
         -- Trigger game over
         local gameState = require("modules.game.gameState")
         gameState.setGameOver(true)
