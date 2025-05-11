@@ -166,7 +166,8 @@ end
 -- Draw the game modes selection screen
 function mainMenu.drawModesScreen()
     local centerX = love.graphics.getWidth() / 2
-    local centerY = love.graphics.getHeight() / 3
+    -- Moved centerY higher to prevent button overlap
+    local centerY = love.graphics.getHeight() / 4
     
     -- Draw title
     love.graphics.setFont(mainMenu.fonts.extraLarge)
@@ -273,16 +274,7 @@ function mainMenu.drawModesScreen()
         end
     end
     
-    -- Draw back button
-    love.graphics.setFont(mainMenu.fonts.large)
-    love.graphics.setColor(0.2, 0.2, 0.3, 0.7)
-    local backButtonY = love.graphics.getHeight() - 100
-    love.graphics.rectangle("fill", centerX - mainMenu.buttonWidth/2, backButtonY, mainMenu.buttonWidth, mainMenu.buttonHeight, 8, 8)
-    
-    love.graphics.setColor(0.8, 0.8, 0.8, 0.8)
-    local backText = "Back"
-    local backWidth = mainMenu.fonts.large:getWidth(backText)
-    love.graphics.print(backText, centerX - backWidth/2, backButtonY + mainMenu.buttonHeight/2 - mainMenu.fonts.large:getHeight()/2)
+    -- Back button removed - users can press ESC to go back
     
     -- Draw instructions
     love.graphics.setFont(mainMenu.fonts.small)
