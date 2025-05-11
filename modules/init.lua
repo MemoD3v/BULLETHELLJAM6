@@ -203,9 +203,21 @@ function game.draw()
     ui.drawVolumeDisplay(fonts.small, volume)
     
     love.graphics.pop()
+    
+    -- Draw instructions screen (this is drawn on top of everything else)
+    -- and is not affected by camera shake
+    if ui.instructionsActive then
+        ui.drawInstructions(fonts)
+    end
 end
 
 function game.keypressed(key)
+    -- First check if instructions are active and dismiss them
+    if ui.instructionsActive then
+        ui.dismissInstructions()
+        return
+    end
+    
     -- Handle power-up typing interface keypresses
     if powerUps.showTypingInterface then
         powerUps.keypressed(key)
