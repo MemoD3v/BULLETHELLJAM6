@@ -9,13 +9,76 @@ local spriteSize = 16
 
 enemies.list = {}
 enemies.spawnTimer = 0
+enemies.baseSpawnRate = 3.0  -- Base spawn interval in seconds
+enemies.currentSpawnRate = 3.0  -- Current spawn interval, modified by game mode multiplier
+
+-- Set spawn rate based on game mode multiplier
+function enemies.setSpawnRate(newRate)
+    enemies.currentSpawnRate = newRate
+end
+
+-- Reset enemies module
+function enemies.damageLoadingBar(enemy)
+    local loadingBar = require("modules.game.loadingBar")
+    local gameModes = require("modules.game.gameModes")
+    
+    if not loadingBar.active then return end
+    
+    -- Calculate damage based on enemy tier
+    local damage = 0.02 -- Base damage
+    
+    -- In endless mode, apply escalating damage based on tier
+    if not gameModes.hasEndCondition() then
+        -- Red enemies (tier 1) do 1x damage
+        -- Yellow enemies (tier 2) do 2x damage
+        -- Higher tier enemies do max 8x damage
+        local tierMultiplier = 2 ^ (enemy.type.tier - 1)
+        -- Cap the multiplier at 8x to prevent extremely high damage
+        tierMultiplier = math.min(8, tierMultiplier)
+        damage = 0.02 * tierMultiplier
+    end
+    
+    -- Apply the damage to the loading bar progress
+    loadingBar.progress = math.max(0, loadingBar.progress - damage)
+    
+    -- Play damage sound
+    local sounds = require("modules.init").getSounds()
+    if sounds and sounds.damage then
+        sounds.damage:stop()
+        sounds.damage:play()
+    end
+end
+
+function enemies.reset()
+    enemies.list = {}
+    enemies.spawnTimer = 0
+    enemies.currentSpawnRate = enemies.baseSpawnRate
+    enemyBullets.reset()
+end
 
 function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
-    if loadingBar.active then
+    -- Always spawn enemies in Endless mode even if loading bar is not active
+    local gameModes = require("modules.game.gameModes")
+    local shouldSpawnEnemies = loadingBar.active or not gameModes.hasEndCondition()
+    
+    if shouldSpawnEnemies then
         enemies.spawnTimer = enemies.spawnTimer + dt
 
         local absoluteCheckpoint = (loadingBar.currentPhase - 1) * loadingBar.checkpointsPerPhase + loadingBar.currentCheckpoint
-        local currentSpawnInterval = math.max(0.5, 3 - (absoluteCheckpoint * 0.25))
+        
+        -- Adjust spawn interval based on checkpoint progress and game mode
+        local currentSpawnInterval = 0
+        
+        -- Different spawn rate calculation for endless mode
+        local gameModes = require("modules.game.gameModes")
+        if not gameModes.hasEndCondition() then
+            -- In endless mode, make enemy spawns slower with a more gradual difficulty curve
+            -- Start with a longer spawn interval and decrease it more gradually
+            currentSpawnInterval = math.max(0.8, enemies.baseSpawnRate * 1.2 - (absoluteCheckpoint * 0.15))
+        else
+            -- Regular mode spawn rate calculation
+            currentSpawnInterval = math.max(0.5, enemies.currentSpawnRate - (absoluteCheckpoint * 0.25))
+        end
 
         if enemies.spawnTimer >= currentSpawnInterval then
             enemies.spawnTimer = 0
@@ -93,6 +156,9 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
         end
 
         if dist < 30 then
+            -- Damage the loading bar progress based on enemy tier
+            enemies.damageLoadingBar(e)
+            
             table.remove(enemies.list, i)
             engine.incrementEnemies()
             if engine.enemiesTouched >= config.engineMaxEnemiesBeforeGameOver then
@@ -116,8 +182,18 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
 end
 
 function enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
+    -- Get enemy spawn multiplier from the game mode
+    local gameModes = require("modules.game.gameModes")
+    local enemyMultiplier = gameModes.getEnemySpawnMultiplier()
+    
+    -- Calculate base spawn count based on checkpoint progress
     local baseSpawnCount = 1 + math.floor(absoluteCheckpoint * 0.5)
-    local spawnCount = math.min(7, baseSpawnCount)
+    
+    -- Apply the game mode multiplier to the spawn count
+    local adjustedSpawnCount = math.ceil(baseSpawnCount * enemyMultiplier)
+    
+    -- Cap the maximum number of enemies that can spawn at once
+    local spawnCount = math.min(12, adjustedSpawnCount)
 
     for i = 1, spawnCount do
         local possibleTypes = {}
@@ -210,10 +286,6 @@ function enemies.draw(fonts, instabilityLevel)
     end
 end
 
-function enemies.reset()
-    enemies.list = {}
-    enemies.spawnTimer = 0
-    enemyBullets.reset()
-end
+-- Function was moved up in the file
 
 return enemies

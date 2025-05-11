@@ -47,7 +47,21 @@ function bullets.update(dt, enemies)
                 local damage = config.bulletDamage * bullets.damageMultiplier
                 e.health = e.health - damage
                 if e.health <= 0 then
-                    gameState.increaseScore(e.type.score)
+                    -- Increase score and apply game mode multiplier
+                    local gameModes = require("modules.game.gameModes")
+                    local scoreMultiplier = gameModes.getScoreMultiplier()
+                    gameState.increaseScore(e.type.score * scoreMultiplier)
+                    
+                    -- Apply vampiric effect if in Vampire mode
+                    if gameModes.hasVampiricEffect() then
+                        -- Heal the loading bar progress instead of the player
+                        local loadingBar = require("modules.game.loadingBar")
+                        local healAmount = gameModes.getHealthPerKill() / 100 -- Convert from health points to progress percentage
+                        loadingBar.heal(healAmount)
+                        
+                        -- Visual feedback is handled in the loadingBar.heal function
+                    end
+                    
                     table.remove(enemies, j)
                 end
                 table.remove(bullets.list, i)

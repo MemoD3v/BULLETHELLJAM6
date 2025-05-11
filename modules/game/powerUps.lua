@@ -464,10 +464,12 @@ function powerUps.keypressed(key)
         -- Check if input matches the prompt
         if powerUps.codingInput == powerUps.codingPrompt then
             -- Activate the power-up
-            powerUps.activate(powerUps.selectedPowerUp)
+            powerUps.activate(powerUps.selectedPowerUp.name)
             powerUps.codingSuccessTime = 3
+            print("Power-up activated: " .. powerUps.selectedPowerUp.name)
         else
             powerUps.codingErrorMsg = "CODE MISMATCH - TRY AGAIN"
+            print("Code mismatch! Expected:\n'" .. powerUps.codingPrompt .. "'\nGot:\n'" .. powerUps.codingInput .. "'")
         end
     elseif key == "backspace" then
         if powerUps.codingCursor > 0 then
@@ -612,12 +614,13 @@ function powerUps.showSelectionAt(checkpoint)
     powerUps.codingFailureTime = 0
 end
 
--- Activate a power-up
+-- Activate a power-up by name
 function powerUps.activate(powerUpName)
-    -- Play power-up activation sound
+    print("Activating power-up: " .. powerUpName)
+    
+    -- Play activation sound
     local sounds = require("modules.init").getSounds()
     if sounds and sounds.powerUp then
-        sounds.powerUp:stop()
         sounds.powerUp:play()
     end
     
@@ -626,21 +629,58 @@ function powerUps.activate(powerUpName)
     for _, powerUp in ipairs(powerUps.types) do
         if powerUp.name == powerUpName then
             powerUpToActivate = powerUp
+            print("Found power-up to activate: " .. powerUp.name)
             break
         end
     end
     
     if powerUps.active then
+        print("Deactivating current power-up: " .. powerUps.active.name)
         powerUps.deactivate()
     end
     
     powerUps.active = powerUpToActivate
-    
     powerUps.activeTime = 0
+    powerUps.activeDuration = 15  -- Reset duration to default
+    
+    -- Hide typing interface
+    powerUps.showTypingInterface = false
     
     -- Call the power-up's activate function
     if powerUpToActivate and powerUpToActivate.activate then
+        print("Calling activate function for: " .. powerUpToActivate.name)
+        
+        -- Execute the activate function
         powerUpToActivate.activate(powerUps.gridOffsetX, powerUps.gridOffsetY)
+        
+        -- Special case handling for certain power-ups that need additional setup
+        if powerUpToActivate.name == "Infinity" then
+            print("Setting up auto-fire")
+            -- Make sure player.autoFireEnabled was properly set
+            player.autoFireEnabled = true
+            player.autoFireCooldown = 0.1
+        elseif powerUpToActivate.name == "Agility" then
+            print("Setting up dash ability")
+            -- Make sure player.dashEnabled was properly set
+            player.dashEnabled = true
+            player.dashDistance = 3
+            player.dashCooldown = 2
+            player.currentDashCooldown = 0
+        elseif powerUpToActivate.name == "GodSpeed" then
+            print("Setting up speed boost")
+            -- Store original move cooldown if not already stored
+            if not player.originalMoveCooldown then
+                player.originalMoveCooldown = config.moveCooldown
+            end
+            -- Apply speed boost
+            config.moveCooldown = player.originalMoveCooldown * 0.4
+        elseif powerUpToActivate.name == "Forcefield" then
+            print("Activating engine shield")
+            -- Make sure engine.shielded was properly set
+            engine.shielded = true
+        end
+    else
+        print("ERROR: Could not activate power-up! Not found or no activate function.")
     end
 end
 

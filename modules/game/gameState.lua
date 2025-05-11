@@ -6,6 +6,7 @@ gameState.pauseTextAlpha = 0
 gameState.pauseTextTimer = 0
 gameState.score = 0
 gameState.checkpointReached = false
+gameState.victory = false  -- Whether the player has won (versus just died)
 
 function gameState.update(dt)
     -- Handle pause text animation
@@ -31,6 +32,17 @@ function gameState.getScore()
     return gameState.score
 end
 
+function gameState.setVictory(state)
+    gameState.victory = state
+    if state == true then
+        gameState.gameOver = true  -- Victory also means game over (but in a good way)
+    end
+end
+
+function gameState.isVictory()
+    return gameState.victory
+end
+
 function gameState.reset()
     gameState.gameOver = false
     gameState.paused = false
@@ -38,6 +50,7 @@ function gameState.reset()
     gameState.pauseTextTimer = 0
     gameState.score = 0
     gameState.checkpointReached = false
+    gameState.victory = false
 end
 
 function gameState.togglePause()

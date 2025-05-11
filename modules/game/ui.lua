@@ -14,6 +14,9 @@ ui.instructionsActive = true -- Start with instructions visible
 ui.instructionsDuration = 10.0 -- Show instructions for 10 seconds
 ui.instructionsTimer = ui.instructionsDuration
 
+-- Nuke UI
+ui.nukeIconPulse = 0 -- For pulsing animation when nuke is ready
+
 function ui.drawGrid(gridOffsetX, gridOffsetY, gridSize, cellSize, gridColor)
     love.graphics.setColor(gridColor)
     love.graphics.setLineWidth(2)
@@ -46,6 +49,14 @@ end
 function ui.drawPlayerStatus(font)
     -- Draw health status in the top-right corner
     love.graphics.setFont(font)
+    
+    -- Draw current game mode in the top-right corner
+    local gameModes = require("modules.game.gameModes")
+    local currentMode = gameModes.getCurrentMode()
+    if currentMode then
+        love.graphics.setColor(0.8, 0.8, 1.0, 0.7)
+        love.graphics.print("MODE: " .. currentMode.name, love.graphics.getWidth() - 150, 50)
+    end
     
     -- Only show detailed status if fade timer is active
     if ui.playerStatusFadeTimer > 0 then
@@ -176,18 +187,53 @@ function ui.reset()
 end
 
 function ui.drawGameOver(score, fonts)
+    -- Check if this is a victory or defeat
+    local gameState = require("modules.game.gameState")
+    local isVictory = gameState.isVictory()
+    
     -- Semi-transparent overlay
     love.graphics.setColor(0, 0, 0, 0.8)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
 
     love.graphics.setFont(fonts.massive)
-    love.graphics.setColor(1, 0, 0)
-    local gameOverText = "GAME OVER"
-    local gameOverWidth = fonts.massive:getWidth(gameOverText)
-    love.graphics.print(gameOverText, 
-                      love.graphics.getWidth()/2 - gameOverWidth/2, 
-                      love.graphics.getHeight()/2 - 100)
+    
+    if isVictory then
+        -- Victory screen (green colors)
+        love.graphics.setColor(0.2, 0.8, 0.2)
+        local victoryText = "VICTORY!"
+        local victoryWidth = fonts.massive:getWidth(victoryText)
+        love.graphics.print(victoryText, 
+                          love.graphics.getWidth()/2 - victoryWidth/2, 
+                          love.graphics.getHeight()/2 - 100)
+                          
+        -- Display mission accomplished message
+        love.graphics.setFont(fonts.large)
+        love.graphics.setColor(0.8, 1.0, 0.8)
+        local missionText = "System stabilized! Glitch contained."
+        local missionWidth = fonts.large:getWidth(missionText)
+        love.graphics.print(missionText,
+                          love.graphics.getWidth()/2 - missionWidth/2,
+                          love.graphics.getHeight()/2 - 40)
+    else
+        -- Defeat screen (red colors)
+        love.graphics.setColor(1, 0, 0)
+        local gameOverText = "GAME OVER"
+        local gameOverWidth = fonts.massive:getWidth(gameOverText)
+        love.graphics.print(gameOverText, 
+                          love.graphics.getWidth()/2 - gameOverWidth/2, 
+                          love.graphics.getHeight()/2 - 100)
+                          
+        -- Display mission failed message
+        love.graphics.setFont(fonts.large)
+        love.graphics.setColor(1.0, 0.8, 0.8)
+        local missionText = "System corruption overwhelming! Mission failed."
+        local missionWidth = fonts.large:getWidth(missionText)
+        love.graphics.print(missionText,
+                          love.graphics.getWidth()/2 - missionWidth/2,
+                          love.graphics.getHeight()/2 - 40)
+    end
 
+    -- Display final score for both victory and defeat
     love.graphics.setFont(fonts.extraLarge)
     love.graphics.setColor(1, 1, 1)
     local scoreText = "FINAL SCORE: " .. score
@@ -196,12 +242,30 @@ function ui.drawGameOver(score, fonts)
                       love.graphics.getWidth()/2 - scoreWidth/2, 
                       love.graphics.getHeight()/2 + 20)
 
+    -- Display game mode
     love.graphics.setFont(fonts.large)
-    local restartText = "Press R to restart"
-    local restartWidth = fonts.large:getWidth(restartText)
+    local gameModes = require("modules.game.gameModes")
+    local modeText = "Mode: " .. gameModes.getCurrentMode().name
+    local modeWidth = fonts.large:getWidth(modeText)
+    love.graphics.print(modeText,
+                      love.graphics.getWidth()/2 - modeWidth/2,
+                      love.graphics.getHeight()/2 + 60)
+                      
+    -- Show restart instructions
+    love.graphics.setFont(fonts.medium)
+    love.graphics.setColor(0.7, 0.7, 0.7)
+    
+    local restartText = ""
+    if gameModes.hasEndCondition() then
+        restartText = "Press R to restart or M for menu"
+    else
+        restartText = "Press M to return to menu"
+    end
+    
+    local restartWidth = fonts.medium:getWidth(restartText)
     love.graphics.print(restartText, 
                       love.graphics.getWidth()/2 - restartWidth/2, 
-                      love.graphics.getHeight()/2 + 80)
+                      love.graphics.getHeight()/2 + 100)
 end
 
 -- Function to draw player instructions
@@ -287,6 +351,120 @@ end
 function ui.dismissInstructions()
     if ui.instructionsActive and ui.instructionsTimer < ui.instructionsDuration - 1.0 then
         ui.instructionsActive = false
+    end
+end
+
+-- Function to draw the passive nuke UI in the bottom-left corner
+function ui.drawPassiveNuke(font)
+    local player = require("modules.game.player")
+    
+    -- Draw the unlock message when the nuke is first unlocked
+    if player.nukeUnlockMessageTimer > 0 then
+        local messageAlpha = math.min(1.0, player.nukeUnlockMessageTimer)
+        local ww, wh = love.graphics.getDimensions()
+        
+        -- Draw a semi-transparent background
+        love.graphics.setColor(0, 0, 0, 0.7 * messageAlpha)
+        love.graphics.rectangle("fill", ww/2 - 200, 100, 400, 80, 10, 10)
+        love.graphics.setColor(1, 0.3, 0.3, messageAlpha)
+        love.graphics.rectangle("line", ww/2 - 200, 100, 400, 80, 10, 10)
+        
+        -- Draw the message
+        love.graphics.setFont(font)
+        love.graphics.setColor(1, 1, 1, messageAlpha)
+        local message = "NUKE ABILITY UNLOCKED!"
+        local subMessage = "Press Q when charged to clear the screen"
+        
+        local messageWidth = font:getWidth(message)
+        local subMessageWidth = font:getWidth(subMessage)
+        
+        love.graphics.print(message, ww/2 - messageWidth/2, 120)
+        love.graphics.print(subMessage, ww/2 - subMessageWidth/2, 150)
+    end
+    
+    -- Only draw the nuke UI if it's unlocked
+    if not player.passiveNukeUnlocked then
+        return
+    end
+    
+    -- Update pulsing animation if nuke is ready
+    if player.passiveNukeReady then
+        ui.nukeIconPulse = (ui.nukeIconPulse + love.timer.getDelta() * 3) % (math.pi * 2)
+    else
+        ui.nukeIconPulse = 0
+    end
+    
+    -- Nuke icon position (bottom-left corner)
+    local iconSize = 40
+    local iconX = 20
+    local iconY = love.graphics.getHeight() - iconSize - 20
+    
+    -- Draw nuke icon background
+    local bgAlpha = 0.6
+    love.graphics.setColor(0.1, 0.1, 0.1, bgAlpha)
+    love.graphics.rectangle("fill", iconX - 5, iconY - 5, iconSize + 10, iconSize + 10, 5, 5)
+    love.graphics.setColor(0.3, 0.3, 0.3, bgAlpha)
+    love.graphics.rectangle("line", iconX - 5, iconY - 5, iconSize + 10, iconSize + 10, 5, 5)
+    
+    -- Draw charge progress circle
+    love.graphics.setLineWidth(3)
+    
+    -- Background circle (gray)
+    love.graphics.setColor(0.3, 0.3, 0.3, 0.8)
+    love.graphics.circle("line", iconX + iconSize/2, iconY + iconSize/2, iconSize/2 - 2)
+    
+    -- Progress arc (changes color based on charge)
+    local progress = player.passiveNukeCharge / player.passiveNukeMaxCharge
+    local startAngle = -math.pi/2 -- Start at top
+    local endAngle = startAngle + (math.pi * 2 * progress)
+    
+    local segments = 30
+    local r, g, b = 1, 0.6, 0.2 -- Orange color for charging
+    
+    if player.passiveNukeReady then
+        -- Use pulsing red when fully charged
+        local pulse = (math.sin(ui.nukeIconPulse) + 1) / 2 -- 0 to 1 pulsing value
+        r = 1
+        g = 0.2 + pulse * 0.3
+        b = 0.2
+    end
+    
+    love.graphics.setColor(r, g, b, 0.9)
+    
+    -- Draw progress arc using line segments
+    if progress > 0 and progress < 1 then
+        local lastX = iconX + iconSize/2 + math.cos(startAngle) * (iconSize/2 - 2)
+        local lastY = iconY + iconSize/2 + math.sin(startAngle) * (iconSize/2 - 2)
+        
+        for i = 1, segments do
+            local ratio = i / segments
+            local angle = startAngle + (endAngle - startAngle) * ratio
+            if angle > startAngle and angle <= endAngle then
+                local newX = iconX + iconSize/2 + math.cos(angle) * (iconSize/2 - 2)
+                local newY = iconY + iconSize/2 + math.sin(angle) * (iconSize/2 - 2)
+                love.graphics.line(lastX, lastY, newX, newY)
+                lastX, lastY = newX, newY
+            end
+        end
+    elseif progress >= 1 then
+        -- Draw full circle when charged
+        love.graphics.circle("line", iconX + iconSize/2, iconY + iconSize/2, iconSize/2 - 2)
+    end
+    
+    -- Draw nuke icon
+    love.graphics.setColor(1, 1, 1, 0.9)
+    love.graphics.setFont(font)
+    local iconText = "💥" -- Unicode explosion symbol
+    local textWidth = font:getWidth(iconText)
+    local textHeight = font:getHeight()
+    love.graphics.print(iconText, iconX + iconSize/2 - textWidth/2, iconY + iconSize/2 - textHeight/2)
+    
+    -- Draw "Q" key prompt below the icon if nuke is ready
+    if player.passiveNukeReady then
+        love.graphics.setColor(1, 1, 1, 0.9)
+        local keyPrompt = "[Q]"
+        local promptWidth = font:getWidth(keyPrompt)
+        love.graphics.print(keyPrompt, iconX + iconSize/2 - promptWidth/2, iconY + iconSize + 5)
     end
 end
 

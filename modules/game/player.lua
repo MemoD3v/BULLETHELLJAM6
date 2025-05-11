@@ -28,6 +28,11 @@ player.dashDirection = nil
 player.dashProgress = 0
 player.dashDuration = 0.15 -- Seconds to complete a dash
 
+-- RogueLike mode variables
+player.moveSpeed = 200 -- Pixels per second for continuous movement
+player.realX = 0      -- Exact X position for continuous movement
+player.realY = 0      -- Exact Y position for continuous movement
+
 -- Shield power-up
 player.shieldEnabled = false
 
@@ -36,6 +41,15 @@ player.nukeEnabled = false
 player.nukeUsed = false
 player.nukeEffectTime = 0
 
+-- Passive nuke ability
+player.passiveNukeCharge = 0
+player.passiveNukeMaxCharge = 10 -- 10 seconds to fully charge
+player.passiveNukeReady = false
+player.passiveNukeRadius = 300 -- Visual radius for explosion effect
+player.passiveNukeEffectTime = 0 -- Animation timer
+player.passiveNukeUnlocked = false -- Locked until first checkpoint
+player.nukeUnlockMessageTimer = 0 -- Timer for unlock message display
+
 -- Rapid fire power-up
 player.fireRateMultiplier = 1.0 -- Default is no multiplier
 
@@ -43,6 +57,50 @@ function player.update(dt, gridSize, gridOffsetX, gridOffsetY)
     -- Update nuke effect timer if active
     if player.nukeEffectTime and player.nukeEffectTime > 0 then
         player.nukeEffectTime = player.nukeEffectTime - dt
+    end
+    
+    -- Passive nuke unlock message timer
+    if player.nukeUnlockMessageTimer > 0 then
+        player.nukeUnlockMessageTimer = player.nukeUnlockMessageTimer - dt
+    end
+    
+    -- Only charge the nuke if it's unlocked
+    if player.passiveNukeUnlocked and not player.passiveNukeReady then
+        player.passiveNukeCharge = player.passiveNukeCharge + dt
+        if player.passiveNukeCharge >= player.passiveNukeMaxCharge then
+            player.passiveNukeCharge = player.passiveNukeMaxCharge
+            player.passiveNukeReady = true
+            
+            -- Play sound effect when nuke is ready
+            local sounds = require("modules.init").getSounds()
+            if sounds and sounds.powerUp then
+                sounds.powerUp:stop()
+                sounds.powerUp:play()
+            end
+        end
+    end
+    
+    -- Update passive nuke effect animation
+    if player.passiveNukeEffectTime > 0 then
+        player.passiveNukeEffectTime = player.passiveNukeEffectTime - dt
+        
+        -- During the nuke effect, we check for enemies to destroy (continuous effect)
+        if player.passiveNukeEffectTime > 0.5 then  -- Only in the first half of the effect
+            local enemies = require("modules.game.enemies")
+            local enemyBullets = require("modules.game.enemyBullets")
+            
+            -- Clear enemy bullets as part of the ongoing effect
+            if enemyBullets and enemyBullets.list then
+                enemyBullets.list = {}
+            end
+            
+            -- Continuously damage enemies within the nuke radius
+            if enemies and enemies.list then
+                for i = #enemies.list, 1, -1 do
+                    enemies.list[i].health = 0
+                end
+            end
+        end
     end
     
     -- Handle dashboard cooldown if enabled
@@ -125,6 +183,23 @@ end
 function player.draw(gridOffsetX, gridOffsetY, fonts)
     local px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
     local py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
+    
+    -- Draw passive nuke explosion effect if active
+    if player.passiveNukeEffectTime > 0 then
+        local effectProgress = 1 - (player.passiveNukeEffectTime / 1.0) -- 1.0 seconds is full duration
+        local maxRadius = player.passiveNukeRadius -- Maximum radius of the explosion
+        local currentRadius = maxRadius * effectProgress
+        
+        -- Draw expanding explosion wave
+        local alpha = 0.8 - effectProgress * 0.8 -- Fade out as it expands
+        love.graphics.setColor(1, 0.4, 0.1, alpha)
+        love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, currentRadius)
+        
+        -- Draw bright inner ring
+        love.graphics.setColor(1, 0.8, 0.2, alpha * 1.5)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.9)
+        love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.8)
+    end
     
     -- Draw shield if active
     if player.shieldEnabled then
@@ -231,6 +306,13 @@ function player.reset()
     player.lastDamageTime = 0
     player.damageFlashTimer = 0
     
+    -- Reset passive nuke
+    player.passiveNukeCharge = 0
+    player.passiveNukeReady = false
+    player.passiveNukeEffectTime = 0
+    player.passiveNukeUnlocked = false
+    player.nukeUnlockMessageTimer = 0
+    
     -- Reset power-up states
     player.autoFireEnabled = false
     player.autoFireTimer = 0
@@ -249,6 +331,16 @@ function player.getScreenPosition(gridOffsetX, gridOffsetY)
     return px, py
 end
 
+-- Set the player's maximum health
+function player.setMaxHealth(value)
+    player.maxHealth = value
+end
+
+-- Set the player's current health
+function player.setHealth(value)
+    player.health = value
+end
+
 -- Handle key press for nuke and dash abilities
 function player.keypressed(key, enemiesList)
     -- Handle dash
@@ -256,7 +348,75 @@ function player.keypressed(key, enemiesList)
         -- We'll keep using the existing dash logic if present
     end
     
-    -- Handle nuke
+    -- Handle passive nuke ability with Q key
+    if key == "q" and player.passiveNukeUnlocked and player.passiveNukeReady then
+        print("Nuke activated!") -- Debug message
+        
+        -- Reset nuke for recharging
+        player.passiveNukeReady = false
+        player.passiveNukeCharge = 0
+        player.passiveNukeEffectTime = 1.0 -- Duration of visual effect in seconds
+        
+        -- Set up a safe reference to enemies list that we'll use
+        local enemies = require("modules.game.enemies")
+        local enemyBullets = require("modules.game.enemyBullets")
+        local bullets = require("modules.game.bullets")
+                
+        -- Clear all enemy bullets from the screen
+        if enemyBullets and enemyBullets.list then
+            print("Clearing enemy bullets: " .. #enemyBullets.list)
+            enemyBullets.list = {}
+        end
+        
+        -- Clear all regular bullets from the screen
+        if bullets and bullets.list then
+            print("Clearing player bullets: " .. #bullets.list)
+            bullets.list = {}
+        end
+        
+        -- DIRECTLY remove all enemies from the list instead of setting health to 0
+        if enemies and enemies.list then
+            print("Removing enemies: " .. #enemies.list)
+            -- Track how many enemies we had to give score/progress
+            local enemyCount = #enemies.list
+            -- Give score and progress for each enemy removed
+            if enemyCount > 0 then
+                -- Increment the score using the correct function
+                local gameState = require("modules.game.gameState")
+                local engine = require("modules.game.engine")
+                
+                -- Add score for each enemy removed
+                gameState.increaseScore(enemyCount * 100)
+                
+                -- Log the score increase
+                print("Nuke cleared " .. enemyCount .. " enemies, adding " .. (enemyCount * 100) .. " points")
+                
+                -- Increment the engine's enemy counter (if needed)
+                for i = 1, enemyCount do
+                    engine.incrementEnemies()
+                end
+            end
+            
+            -- Clear the enemy list completely
+            enemies.list = {}
+        end
+        
+        -- Play explosion sound effect
+        local sounds = require("modules.init").getSounds()
+        if sounds and sounds.explosion then
+            sounds.explosion:stop()
+            sounds.explosion:play()
+        elseif sounds and sounds.playerShoot then
+            sounds.playerShoot:stop()
+            sounds.playerShoot:play()
+        end
+        
+        -- Camera shake effect
+        local camera = require("modules.game.camera")
+        camera.shake(8, 1.0) -- Strong shake for explosion
+    end
+    
+    -- Handle nuke power-up from original code (kept for compatibility)
     if player.nukeEnabled and key == "space" and not player.nukeUsed then
         player.nukeUsed = true
         
@@ -325,6 +485,23 @@ end
 
 function player.getHealth()
     return player.health, player.maxHealth
+end
+
+-- Heal the player by the specified amount
+function player.heal(amount)
+    -- Only heal if player is alive
+    if player.health <= 0 then return false end
+    
+    local oldHealth = player.health
+    player.health = math.min(player.maxHealth, player.health + amount)
+    
+    -- Play healing sound if health increased
+    if player.health > oldHealth then
+        -- Visual effect for healing could be added here
+        return true
+    end
+    
+    return false
 end
 
 return player
