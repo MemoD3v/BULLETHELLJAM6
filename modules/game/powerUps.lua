@@ -8,7 +8,7 @@ local engine = require("modules.game.engine")
 -- Store the currently active power-up
 powerUps.active = nil
 powerUps.activeTime = 0
-powerUps.activeDuration = 20  -- Increased from 15 to 20 seconds
+powerUps.activeDuration = 15  -- Default duration in seconds
 powerUps.codingActive = false
 powerUps.codingPrompt = ""
 powerUps.codingInput = ""
@@ -37,54 +37,6 @@ powerUps.types = {
             player.autoFireEnabled = false
         end,
         unlockAt = 0
-    },
-    {
-        name = "Guardian Shield",
-        description = "Creates a defensive shield that blocks enemy bullets",
-        code = "power.shield()",
-        icon = "⛨",
-        color = {0.3, 0.8, 0.9},
-        activate = function()
-            player.shieldEnabled = true
-            player.invulnerabilityTimer = powerUps.activeDuration  -- Player is invulnerable while shield is active
-        end,
-        deactivate = function()
-            player.shieldEnabled = false
-            player.invulnerabilityTimer = 0
-        end,
-        unlockAt = 2  -- Available after checkpoint 2
-    },
-    {
-        name = "Nuke",
-        description = "Press SPACE to clear all enemies and bullets",
-        code = "power.nuke()",
-        icon = "☢",
-        color = {1, 0.4, 0.1},
-        activate = function()
-            -- Store the nuke functionality for when SPACE is pressed
-            player.nukeEnabled = true
-            player.nukeUsed = false
-        end,
-        deactivate = function()
-            player.nukeEnabled = false
-        end,
-        unlockAt = 2  -- Available after checkpoint 2
-    },
-    {
-        name = "Rapid Fire",
-        description = "Triple fire rate and damage",
-        code = "power.rapidfire()",
-        icon = "⚡",
-        color = {1, 0.8, 0.2},
-        activate = function()
-            player.fireRateMultiplier = 3.0  -- 3x faster shooting
-            bullets.damageMultiplier = 1.5   -- 50% more damage
-        end,
-        deactivate = function()
-            player.fireRateMultiplier = 1.0
-            bullets.damageMultiplier = 1.0
-        end,
-        unlockAt = 2  -- Available after checkpoint 2
     },
     {
         name = "Agility",
@@ -205,10 +157,7 @@ end
 -- Update the power-up system
 function powerUps.update(dt, absoluteCheckpoint)
     -- Update available power-ups based on checkpoint progress
-    -- Only update when we have a valid checkpoint value
-    if absoluteCheckpoint and type(absoluteCheckpoint) == "number" then
-        powerUps.updateAvailable(absoluteCheckpoint)
-    end
+    powerUps.updateAvailable(absoluteCheckpoint)
     
     -- Handle typing interface timer
     if powerUps.showTypingInterface and powerUps.codingSuccessTime <= 0 and powerUps.codingFailureTime <= 0 then
@@ -218,7 +167,6 @@ function powerUps.update(dt, absoluteCheckpoint)
         if powerUps.typingTimeRemaining <= 0 then
             powerUps.codingFailureTime = 2  -- Show failure message for 2 seconds
             powerUps.codingErrorMsg = "TIME'S UP - HACK FAILED"
-            powerUps.selectedPowerUp = nil -- Clear the selected power-up so it doesn't activate
         end
     end
     
@@ -515,16 +463,11 @@ function powerUps.keypressed(key)
     if key == "return" then
         -- Check if input matches the prompt
         if powerUps.codingInput == powerUps.codingPrompt then
-            -- Activate the power-up - pass the power-up name instead of the full object
-            if powerUps.selectedPowerUp and powerUps.selectedPowerUp.name then
-                powerUps.activate(powerUps.selectedPowerUp.name)
-                powerUps.codingSuccessTime = 3
-            else
-                powerUps.codingErrorMsg = "ERROR: POWER-UP NOT FOUND"
-            end
+            -- Activate the power-up
+            powerUps.activate(powerUps.selectedPowerUp)
+            powerUps.codingSuccessTime = 3
         else
             powerUps.codingErrorMsg = "CODE MISMATCH - TRY AGAIN"
-            -- Don't clear selectedPowerUp yet - give them another chance to type it
         end
     elseif key == "backspace" then
         if powerUps.codingCursor > 0 then
@@ -588,32 +531,17 @@ end
 
 -- Show power-up selection interface at checkpoint
 function powerUps.showSelectionAt(checkpoint)
-    -- Validate checkpoint value - must be a valid number greater than 0
-    if not checkpoint or type(checkpoint) ~= "number" or checkpoint <= 0 then
-        print("Invalid checkpoint value: " .. tostring(checkpoint))
-        return
-    end
-    
-    -- Prevent showing power-ups at the same checkpoint twice
-    if checkpoint <= powerUps.lastCheckpoint then
-        print("Checkpoint " .. tostring(checkpoint) .. " already processed")
-        return
-    end
-    
     -- Only show if there are power-ups available
-    if #powerUps.availablePowerUps == 0 then 
-        print("No power-ups available")
-        return 
-    end
+    if #powerUps.availablePowerUps == 0 then return end
     
     -- If we already have an active power-up, don't offer a new one
-    if powerUps.active then 
-        print("Already have an active power-up")
-        return 
-    end
+    if powerUps.active then return end
     
     -- Debug the checkpoint values
     print("Showing selection at checkpoint: " .. tostring(checkpoint) .. ", last checkpoint: " .. tostring(powerUps.lastCheckpoint))
+    
+    -- Only skip re-randomization if we already have a selected power-up AND we're showing the interface
+    -- We removed this check for now as it was preventing power-ups from appearing
     
     -- Save this checkpoint as the last one we've processed
     powerUps.lastCheckpoint = checkpoint
@@ -702,24 +630,13 @@ function powerUps.activate(powerUpName)
         end
     end
     
-    -- If there's already an active power-up, deactivate it
     if powerUps.active then
         powerUps.deactivate()
     end
     
-    -- Set the new active power-up and reset timer
     powerUps.active = powerUpToActivate
-    powerUps.activeTime = 0
     
-    -- Debug print to verify power-up activation
-    if type(powerUpName) == "string" then
-        print("Activating power-up: " .. powerUpName)
-    elseif type(powerUpName) == "table" and powerUpName.name then
-        print("Activating power-up: " .. powerUpName.name)
-    else
-        print("Activating power-up (name unavailable)")
-    end
-    print("Power-up duration: " .. powerUps.activeDuration .. " seconds")
+    powerUps.activeTime = 0
     
     -- Call the power-up's activate function
     if powerUpToActivate and powerUpToActivate.activate then

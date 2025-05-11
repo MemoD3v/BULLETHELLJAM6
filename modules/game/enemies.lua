@@ -4,6 +4,9 @@ local engine = require("modules.game.engine")
 local gameState = require("modules.game.gameState")
 local enemyBullets = require("modules.game.enemyBullets")
 
+local enemySprites = love.graphics.newImage("source/sprites/enemies.png")
+local spriteSize = 16
+
 enemies.list = {}
 enemies.spawnTimer = 0
 
@@ -11,7 +14,6 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
     if loadingBar.active then
         enemies.spawnTimer = enemies.spawnTimer + dt
 
-        -- Adjust spawn rate based on checkpoint progress and phase
         local absoluteCheckpoint = (loadingBar.currentPhase - 1) * loadingBar.checkpointsPerPhase + loadingBar.currentCheckpoint
         local currentSpawnInterval = math.max(0.5, 3 - (absoluteCheckpoint * 0.25))
 
@@ -25,7 +27,6 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
         local e = enemies.list[i]
         e.animTimer = e.animTimer + dt
         
-        -- Update enemy fire cooldowns
         if e.fireCooldown > 0 then
             e.fireCooldown = e.fireCooldown - dt
         end
@@ -41,16 +42,13 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
         e.x = e.x + dx * e.type.speed * 60 * dt
         e.y = e.y + dy * e.type.speed * 60 * dt
         
-        -- Fire bullets if ready
         if loadingBar.active and e.fireCooldown <= 0 and dist > 100 then
             e.fireCooldown = e.type.fireRate
             
-            -- Handle different bullet patterns
             if e.type.bulletPattern == "single" then
                 enemyBullets.create(e.x, e.y, e.type, gridOffsetX, gridOffsetY)
             elseif e.type.bulletPattern == "double" then
-                -- Create two bullets with slight angle offset
-                local offset = 0.2 -- Radians
+                local offset = 0.2
                 local ex, ey = e.x, e.y
                 for j = -1, 1, 2 do
                     local bulletType = {}
@@ -59,8 +57,7 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
                     enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
                 end
             elseif e.type.bulletPattern == "triple" then
-                -- Create three bullets - one straight, two angled
-                local offset = 0.25 -- Radians
+                local offset = 0.25
                 local ex, ey = e.x, e.y
                 for j = -1, 1 do
                     local bulletType = {}
@@ -69,8 +66,7 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
                     enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
                 end
             elseif e.type.bulletPattern == "spread" then
-                -- Create five bullets in a spread pattern
-                local offset = 0.15 -- Radians
+                local offset = 0.15
                 local ex, ey = e.x, e.y
                 for j = -2, 2 do
                     local bulletType = {}
@@ -79,17 +75,15 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
                     enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
                 end
             elseif e.type.bulletPattern == "wave" or e.type.bulletPattern == "burst" then
-                -- Create a burst of bullets
                 local count = e.type.bulletPattern == "wave" and 3 or 6
                 local ex, ey = e.x, e.y
                 
                 for j = 1, count do
                     local bulletType = {}
                     for k, v in pairs(e.type) do bulletType[k] = v end
-                    bulletType.bulletSpeed = e.type.bulletSpeed * (1 - 0.1 * j) -- Slightly varied speeds
+                    bulletType.bulletSpeed = e.type.bulletSpeed * (1 - 0.1 * j)
                     enemyBullets.create(ex, ey, bulletType, gridOffsetX, gridOffsetY)
                     
-                    -- Play enemy shoot sound
                     local sounds = require("modules.init").getSounds()
                     if sounds and sounds.enemyShoot then
                         sounds.enemyShoot:clone():play()
@@ -102,7 +96,6 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
             table.remove(enemies.list, i)
             engine.incrementEnemies()
             if engine.enemiesTouched >= config.engineMaxEnemiesBeforeGameOver then
-                -- Play engine death sound
                 local sounds = require("modules.init").getSounds()
                 if sounds and sounds.playerDeath then
                     sounds.playerDeath:stop()
@@ -112,7 +105,6 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
                 gameState.setGameOver(true)
             end
             
-            -- Play enemy death sound
             local sounds = require("modules.init").getSounds()
             if sounds and sounds.enemyDeath then
                 sounds.enemyDeath:clone():play()
@@ -120,12 +112,10 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
         end
     end
     
-    -- Update enemy bullets
     enemyBullets.update(dt, gridOffsetX, gridOffsetY)
 end
 
 function enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
-    -- Increased difficulty with absoluteCheckpoint
     local baseSpawnCount = 1 + math.floor(absoluteCheckpoint * 0.5)
     local spawnCount = math.min(7, baseSpawnCount)
 
@@ -165,7 +155,7 @@ function enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
                 size = type.size,
                 animTimer = 0,
                 spawnTime = love.timer.getTime(),
-                fireCooldown = type.fireRate * (0.5 + love.math.random() * 0.5) -- Random initial cooldown
+                fireCooldown = type.fireRate * (0.5 + love.math.random() * 0.5)
             })
         end
     end
@@ -173,17 +163,17 @@ end
 
 function enemies.draw(fonts, instabilityLevel)
     local currentTime = love.timer.getTime()
-    
-    -- Draw enemy bullets first (so they appear behind enemies)
     enemyBullets.draw()
     
     for _, e in ipairs(enemies.list) do
-        -- Spawn animation
+        local spriteIndex = e.type.spriteIndex or 0
+        local quad = love.graphics.newQuad(spriteIndex * spriteSize, 0, spriteSize, spriteSize, enemySprites:getDimensions())
+        
         if currentTime - e.spawnTime < 0.5 then
             local spawnProgress = (currentTime - e.spawnTime) / 0.5
             love.graphics.setColor(e.type.color[1], e.type.color[2], e.type.color[3], spawnProgress)
-            local scale = 0.5 + spawnProgress * 0.5
-            love.graphics.circle("fill", e.x, e.y, e.size/2 * scale)
+            local scale = (0.5 + spawnProgress * 0.5) * (e.size / spriteSize)
+            love.graphics.draw(enemySprites, quad, e.x, e.y, 0, scale, scale, spriteSize/2, spriteSize/2)
         end
 
         local wobbleX = math.sin(e.animTimer * 3) * instabilityLevel * 5
@@ -193,13 +183,12 @@ function enemies.draw(fonts, instabilityLevel)
         love.graphics.translate(e.x + wobbleX, e.y + wobbleY)
 
         love.graphics.setColor(e.type.color)
-        love.graphics.circle("fill", 0, 0, e.size/2)
+        love.graphics.draw(enemySprites, quad, 0, 0, 0, e.size/spriteSize, e.size/spriteSize, spriteSize/2, spriteSize/2)
         
-        -- Add a glowing outline if ready to fire
         if e.fireCooldown <= 0.3 then
             local glowIntensity = math.abs(math.sin(e.animTimer * 10)) * 0.5
             love.graphics.setColor(e.type.color[1], e.type.color[2], e.type.color[3], glowIntensity)
-            love.graphics.circle("fill", 0, 0, e.size/2 * 1.2)
+            love.graphics.draw(enemySprites, quad, 0, 0, 0, (e.size/spriteSize) * 1.2, (e.size/spriteSize) * 1.2, spriteSize/2, spriteSize/2)
         end
 
         local healthRatio = e.health / e.maxHealth
@@ -207,12 +196,10 @@ function enemies.draw(fonts, instabilityLevel)
         local healthBarHeight = 5
 
         love.graphics.setColor(0.1, 0.1, 0.1)
-        love.graphics.rectangle("fill", -healthBarWidth/2, -e.size/2 - 10, 
-                              healthBarWidth, healthBarHeight)
+        love.graphics.rectangle("fill", -healthBarWidth/2, -e.size/2 - 10, healthBarWidth, healthBarHeight)
 
         love.graphics.setColor(0.2, 1, 0.2)
-        love.graphics.rectangle("fill", -healthBarWidth/2, -e.size/2 - 10, 
-                              healthBarWidth * healthRatio, healthBarHeight)
+        love.graphics.rectangle("fill", -healthBarWidth/2, -e.size/2 - 10, healthBarWidth * healthRatio, healthBarHeight)
 
         love.graphics.setFont(fonts.small)
         love.graphics.setColor(1, 1, 1)
