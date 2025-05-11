@@ -13,7 +13,7 @@ effect = moonshine(moonshine.effects.filmgrain)
     effect.chromasep.radius = 1.5
 
 function love.load()
-    love._openConsole()
+    -- Removed console opening call that was causing errors
     game.load()
 end
 
@@ -28,7 +28,16 @@ function love.draw()
 end
 
 function love.mousepressed(x, y, button)
-    game.mousepressed(x, y, button)
+    -- Fix: Combine both mousepressed handlers to avoid conflicts
+    print("Main mousepressed called: " .. button)
+    
+    -- Check if menu is active first
+    if mainMenu.isActive() then
+        mainMenu.mousepressed(x, y, button)
+    else
+        -- Forward to game module for gameplay
+        game.mousepressed(x, y, button)
+    end
 end
 
 function love.keypressed(key)
@@ -41,10 +50,4 @@ end
 
 function love.resize(w, h)
     game.resize(w, h)
-end
-
-function love.mousepressed(x, y, button)
-    if mainMenu.isActive() then
-        mainMenu.mousepressed(x, y, button)
-    end
 end
