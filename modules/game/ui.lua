@@ -18,6 +18,27 @@ ui.instructionsTimer = ui.instructionsDuration
 ui.nukeIconPulse = 0 -- For pulsing animation when nuke is ready
 
 function ui.drawGrid(gridOffsetX, gridOffsetY, gridSize, cellSize, gridColor)
+    -- Skip drawing the grid in RogueLike mode
+    local gameModes = require("modules.game.gameModes")
+    if gameModes.isRogueLike() then
+        -- If in RogueLike mode, draw an expanded border (50% larger than the grid)
+        local expansionFactor = 1.5 -- Match player movement expansion
+        local origGridSize = gridSize * cellSize
+        local expandedGridSize = origGridSize * expansionFactor
+        local expansionAmount = (expandedGridSize - origGridSize) / 2
+        
+        -- Draw the expanded border
+        love.graphics.setColor(gridColor[1], gridColor[2], gridColor[3], 0.7) -- Semi-transparent border
+        love.graphics.setLineWidth(4) -- Thicker border line
+        love.graphics.rectangle("line", 
+            gridOffsetX - expansionAmount, 
+            gridOffsetY - expansionAmount, 
+            expandedGridSize, 
+            expandedGridSize)
+        return
+    end
+    
+    -- Draw normal grid for other modes
     love.graphics.setColor(gridColor)
     love.graphics.setLineWidth(2)
     for x = 0, gridSize do

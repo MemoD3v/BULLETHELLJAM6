@@ -108,58 +108,138 @@ function player.update(dt, gridSize, gridOffsetX, gridOffsetY)
         player.currentDashCooldown = player.currentDashCooldown - dt
     end
     
-    -- Handle movement cooldown
-    if player.moveTimer > 0 then
-        player.moveTimer = player.moveTimer - dt
-    else
-        local moved = false
-        
-        -- Check for dash (spacebar)
-        if player.dashEnabled and player.currentDashCooldown <= 0 and love.keyboard.isDown("space") then
-            -- Determine dash direction based on the last movement key pressed
-            local dashDir = {x = 0, y = 0}
-            if love.keyboard.isDown("w") then dashDir.y = -1
-            elseif love.keyboard.isDown("s") then dashDir.y = 1
-            elseif love.keyboard.isDown("a") then dashDir.x = -1
-            elseif love.keyboard.isDown("d") then dashDir.x = 1
-            end
-            
-            -- Only dash if a direction is chosen
-            if dashDir.x ~= 0 or dashDir.y ~= 0 then
-                -- Calculate new position after dash
-                local newX = player.x + dashDir.x * player.dashDistance
-                local newY = player.y + dashDir.y * player.dashDistance
-                
-                -- Constrain to grid
-                newX = math.max(1, math.min(gridSize, newX))
-                newY = math.max(1, math.min(gridSize, newY))
-                
-                -- Apply dash
-                player.x = newX
-                player.y = newY
-                player.currentDashCooldown = player.dashCooldown
-                player.moveTimer = config.moveCooldown * 0.5  -- Half cooldown after dash
-                moved = true
-            end
-        else
-            -- Regular movement
-            if love.keyboard.isDown("w") and player.y > 1 then 
-                player.y = player.y - 1 
-                moved = true
-            elseif love.keyboard.isDown("s") and player.y < gridSize then 
-                player.y = player.y + 1 
-                moved = true
-            elseif love.keyboard.isDown("a") and player.x > 1 then 
-                player.x = player.x - 1 
-                moved = true
-            elseif love.keyboard.isDown("d") and player.x < gridSize then 
-                player.x = player.x + 1 
-                moved = true
-            end
+    -- Get game mode for movement type
+    local gameModes = require("modules.game.gameModes")
+    local isRogueMode = gameModes.isRogueLike()
+    
+    if isRogueMode then
+        -- ROGUELIKE MODE: Continuous movement
+        -- Initialize realX and realY if not set yet
+        if player.realX == 0 then
+            player.realX = gridOffsetX + (player.x - 0.5) * config.cellSize
+            player.realY = gridOffsetY + (player.y - 0.5) * config.cellSize
         end
         
-        if moved then 
-            player.moveTimer = config.moveCooldown 
+        -- Calculate movement direction
+        local dx, dy = 0, 0
+        if love.keyboard.isDown("w") then dy = dy - 1 end
+        if love.keyboard.isDown("s") then dy = dy + 1 end
+        if love.keyboard.isDown("a") then dx = dx - 1 end
+        if love.keyboard.isDown("d") then dx = dx + 1 end
+        
+        -- Normalize diagonal movement
+        if dx ~= 0 and dy ~= 0 then
+            local len = math.sqrt(dx * dx + dy * dy)
+            dx, dy = dx / len, dy / len
+        end
+        
+        -- Apply movement
+        if dx ~= 0 or dy ~= 0 then
+            player.realX = player.realX + dx * player.moveSpeed * dt
+            player.realY = player.realY + dy * player.moveSpeed * dt
+            
+            -- Add boundaries to prevent moving outside the play area - 50% larger for RogueLike mode
+            local expansionFactor = 1.5 -- Make play area 50% larger than the grid
+            local origGridSize = gridSize * config.cellSize 
+            local expandedGridSize = origGridSize * expansionFactor
+            local expansionAmount = (expandedGridSize - origGridSize) / 2
+            
+            -- Calculate the expanded boundaries
+            local minX = gridOffsetX - expansionAmount
+            local minY = gridOffsetY - expansionAmount
+            local maxX = gridOffsetX + origGridSize + expansionAmount
+            local maxY = gridOffsetY + origGridSize + expansionAmount
+            
+            player.realX = math.max(minX, math.min(maxX, player.realX))
+            player.realY = math.max(minY, math.min(maxY, player.realY))
+            
+            -- Update grid position for compatibility with non-roguelike code
+            player.x = math.floor((player.realX - gridOffsetX) / config.cellSize) + 1
+            player.y = math.floor((player.realY - gridOffsetY) / config.cellSize) + 1
+        end
+        
+        -- Handle dashing in roguelike mode
+        if player.dashEnabled and player.currentDashCooldown <= 0 and love.keyboard.isDown("space") and (dx ~= 0 or dy ~= 0) then
+            -- Apply dash in the current movement direction
+            player.realX = player.realX + dx * player.moveSpeed * 5 * dt
+            player.realY = player.realY + dy * player.moveSpeed * 5 * dt
+            
+            -- Apply the same expanded boundaries
+            local expansionFactor = 1.5 -- Make play area 50% larger than the grid
+            local origGridSize = gridSize * config.cellSize 
+            local expandedGridSize = origGridSize * expansionFactor
+            local expansionAmount = (expandedGridSize - origGridSize) / 2
+            
+            -- Calculate the expanded boundaries
+            local minX = gridOffsetX - expansionAmount
+            local minY = gridOffsetY - expansionAmount
+            local maxX = gridOffsetX + origGridSize + expansionAmount
+            local maxY = gridOffsetY + origGridSize + expansionAmount
+            
+            player.realX = math.max(minX, math.min(maxX, player.realX))
+            player.realY = math.max(minY, math.min(maxY, player.realY))
+            
+            -- Update grid position
+            player.x = math.floor((player.realX - gridOffsetX) / config.cellSize) + 1
+            player.y = math.floor((player.realY - gridOffsetY) / config.cellSize) + 1
+            
+            player.currentDashCooldown = player.dashCooldown
+        end
+    else
+        -- ORIGINAL MODE: Grid-based movement
+        -- Handle movement cooldown
+        if player.moveTimer > 0 then
+            player.moveTimer = player.moveTimer - dt
+        else
+            local moved = false
+            
+            -- Check for dash (spacebar)
+            if player.dashEnabled and player.currentDashCooldown <= 0 and love.keyboard.isDown("space") then
+                -- Determine dash direction based on the last movement key pressed
+                local dashDir = {x = 0, y = 0}
+                if love.keyboard.isDown("w") then dashDir.y = -1
+                elseif love.keyboard.isDown("s") then dashDir.y = 1
+                elseif love.keyboard.isDown("a") then dashDir.x = -1
+                elseif love.keyboard.isDown("d") then dashDir.x = 1
+                end
+                
+                -- Only dash if a direction is chosen
+                if dashDir.x ~= 0 or dashDir.y ~= 0 then
+                    -- Calculate new position after dash
+                    local newX = player.x + dashDir.x * player.dashDistance
+                    local newY = player.y + dashDir.y * player.dashDistance
+                    
+                    -- Constrain to grid
+                    newX = math.max(1, math.min(gridSize, newX))
+                    newY = math.max(1, math.min(gridSize, newY))
+                    
+                    -- Apply dash
+                    player.x = newX
+                    player.y = newY
+                    player.currentDashCooldown = player.dashCooldown
+                    player.moveTimer = config.moveCooldown * 0.5  -- Half cooldown after dash
+                    moved = true
+                end
+            else
+                -- Regular movement
+                if love.keyboard.isDown("w") and player.y > 1 then 
+                    player.y = player.y - 1 
+                    moved = true
+                elseif love.keyboard.isDown("s") and player.y < gridSize then 
+                    player.y = player.y + 1 
+                    moved = true
+                elseif love.keyboard.isDown("a") and player.x > 1 then 
+                    player.x = player.x - 1 
+                    moved = true
+                elseif love.keyboard.isDown("d") and player.x < gridSize then 
+                    player.x = player.x + 1 
+                    moved = true
+                end
+            end
+            
+            if moved then 
+                player.moveTimer = config.moveCooldown 
+            end
         end
     end
     
@@ -181,8 +261,19 @@ function player.update(dt, gridSize, gridOffsetX, gridOffsetY)
 end
 
 function player.draw(gridOffsetX, gridOffsetY, fonts)
-    local px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
-    local py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
+    local px, py
+    local gameModes = require("modules.game.gameModes")
+    
+    -- Use exact position for RogueLike mode, grid-based position for other modes
+    if gameModes.isRogueLike() and player.realX ~= 0 then
+        -- For RogueLike mode, use the continuous position
+        px = player.realX - config.playerSize / 2
+        py = player.realY - config.playerSize / 2
+    else
+        -- For other modes, use the grid position
+        px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
+        py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
+    end
     
     -- Draw passive nuke explosion effect if active
     if player.passiveNukeEffectTime > 0 then
@@ -305,6 +396,10 @@ function player.reset()
     player.invulnerabilityTimer = 0
     player.lastDamageTime = 0
     player.damageFlashTimer = 0
+    
+    -- Reset RogueLike mode variables
+    player.realX = 0 -- Will be reinitialized during the first update
+    player.realY = 0
     
     -- Reset passive nuke
     player.passiveNukeCharge = 0

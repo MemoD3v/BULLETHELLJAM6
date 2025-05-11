@@ -222,7 +222,7 @@ function game.update(dt)
     player.update(dt, config.gridSize, gridOffsetX, gridOffsetY)
     
     -- Update engine animation and state
-    engine.update(dt, loadingBar.currentCheckpoint)
+    engine.update(dt, loadingBar.currentCheckpoint, player.x, player.y)
     
     -- Update bullets
     bullets.update(dt, enemies.list)

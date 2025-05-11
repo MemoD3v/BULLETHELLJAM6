@@ -14,7 +14,7 @@ engine.shielded = false
 engine.shieldTimer = 0
 engine.shieldPulse = 0
 
-function engine.update(dt, checkpointLevel)
+function engine.update(dt, checkpointLevel, playerX, playerY)
     engine.animTimer = engine.animTimer + dt
     engine.instabilityLevel = checkpointLevel / 5
     engine.animOffset = math.sin(engine.animTimer * (4 + engine.instabilityLevel * 4)) * 
@@ -27,6 +27,27 @@ function engine.update(dt, checkpointLevel)
     if engine.shielded then
         engine.shieldTimer = engine.shieldTimer + dt
         engine.shieldPulse = 0.5 + 0.5 * math.sin(engine.shieldTimer * 5)
+    end
+    
+    -- Make engine follow the player in RogueLike mode
+    local gameModes = require("modules.game.gameModes")
+    if gameModes.isRogueLike() and playerX and playerY then
+        -- Get distance between player and engine
+        local dx = playerX - engine.x
+        local dy = playerY - engine.y
+        
+        -- Only move the engine if player is more than 2 grid cells away
+        local distanceSquared = dx*dx + dy*dy
+        if distanceSquared > 4 then
+            -- Normalize direction
+            local distance = math.sqrt(distanceSquared)
+            local dirX = dx / distance
+            local dirY = dy / distance
+            
+            -- Move engine toward player at a slower pace (1/3 of a cell per update)
+            engine.x = engine.x + dirX * 0.33
+            engine.y = engine.y + dirY * 0.33
+        end
     end
 end
 
@@ -116,6 +137,11 @@ function engine.incrementEnemies()
 end
 
 function engine.reset()
+    -- Reset position to the center of the grid
+    engine.x = math.ceil(config.gridSize / 2)
+    engine.y = math.ceil(config.gridSize / 2)
+    
+    -- Reset animation and effects
     engine.animOffset = 0
     engine.animTimer = 0
     engine.enemiesTouched = 0

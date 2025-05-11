@@ -295,10 +295,11 @@ function loadingBar.draw(gridOffsetX, gridOffsetY, fonts)
         -- Set the proper text alpha - always visible (but faded) in non-endless modes
         local textAlpha = (gameModes.hasEndCondition() and not isEndlessMode) and 0.75 or loadingBar.checkpointTextAlpha
         
-        -- Only adjust the phase text for Endless mode
+        -- Only adjust the phase text for Endless mode and RogueLike mode
         local phaseText
-        if isEndlessMode then
-            -- Endless mode: just show PHASE without "OF totalPhases"
+        local gameModes = require("modules.game.gameModes")
+        if isEndlessMode or gameModes.isRogueLike() then
+            -- Endless/RogueLike mode: just show PHASE without "OF totalPhases"
             phaseText = "PHASE " .. loadingBar.currentPhase
         else
             -- Normal modes: show phase count
