@@ -43,8 +43,9 @@ function loadingBar.heal(amount)
     end
     
     -- Play heal sound
-    local sounds = require("modules.init").getSounds()
     if sounds and sounds.powerUp then
+        local sounds = require("modules.init").getSounds()
+
         sounds.powerUp:stop()
         sounds.powerUp:play()
     end
@@ -96,6 +97,7 @@ function loadingBar.update(dt)
             -- Switch to after-start music if we're past the first checkpoint and just starting
             if loadingBar.absoluteCheckpoint > 0 and oldCheckpoint == 0 then
                 if sounds and sounds.musicBeforeStart and sounds.musicAfterStart then
+
                 end
             end
         end
@@ -328,9 +330,11 @@ function loadingBar.draw(gridOffsetX, gridOffsetY, fonts)
 end
 
 function loadingBar.activate()
+    local sounds = require("modules.init").getSounds()
+    
     loadingBar.active = true
-    sounds.musicAfterStart:stop()
-    sounds.musicBeforeStart:play()
+    sounds.musicBeforeStart:stop()
+    sounds.musicAfterStart:play()
 end
 
 function loadingBar.reset()
