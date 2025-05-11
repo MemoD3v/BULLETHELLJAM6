@@ -43,24 +43,69 @@ function engine.draw(gridOffsetX, gridOffsetY, fonts, showPrompt)
         love.graphics.circle("line", ex, ey, shieldSize)
     end
 
+    -- Draw the main cheat engine body
     love.graphics.push()
     love.graphics.translate(ex, ey)
     love.graphics.scale(engine.pulseScale, engine.pulseScale)
+    
+    -- Draw the engine base
     love.graphics.setColor(0.8, 0.2, 0.2)
-    love.graphics.rectangle("fill", -20, -20, 40, 40)
+    love.graphics.rectangle("fill", -25, -25, 50, 50)
+    
+    -- Draw the mini-monitor frame
+    love.graphics.setColor(0.1, 0.1, 0.1)
+    love.graphics.rectangle("fill", -40, -80, 80, 50)  -- Monitor base
+    
+    -- Get the game canvas from init module
+    local gameCanvas = require("modules.init").getGameCanvas()
+    
+    -- Draw the mini game screen if available
+    if gameCanvas then
+        -- Draw a monitor background first (dark gray)
+        love.graphics.setColor(0.1, 0.1, 0.1, 1)
+        love.graphics.rectangle("fill", -35, -75, 70, 45) -- Screen background
+        
+        -- Draw screen with full opacity
+        love.graphics.setColor(1, 1, 1, 1)
+        love.graphics.draw(gameCanvas, -35, -75, 0, 0.1, 0.1)  -- Slightly larger scale, full opacity
+        
+        -- Draw screen edge highlights
+        love.graphics.setColor(0.3, 0.3, 0.3, 1)
+        love.graphics.rectangle("line", -35, -75, 70, 45) -- Screen border
+        
+        -- Draw scanlines for CRT effect
+        love.graphics.setColor(0, 0, 0, 0.3)
+        for i = 0, 18 do
+            love.graphics.line(-35, -75 + i * 2.5, 35, -75 + i * 2.5)
+        end
+        
+        -- Draw screen glint
+        love.graphics.setColor(1, 1, 1, 0.2 + 0.1 * math.sin(love.timer.getTime() * 2))
+        love.graphics.polygon("fill", -35, -75, -15, -75, -30, -60, -35, -65)
+    end
+    
+    -- Draw flashing lights/buttons
+    love.graphics.setColor(0, 1, 0, 0.5 + 0.5 * math.sin(love.timer.getTime() * 5))
+    love.graphics.circle("fill", -15, 15, 4)
+    love.graphics.setColor(1, 0, 0, 0.5 + 0.5 * math.sin(love.timer.getTime() * 3))
+    love.graphics.circle("fill", 0, 15, 4)
+    love.graphics.setColor(0, 0.5, 1, 0.5 + 0.5 * math.sin(love.timer.getTime() * 7))
+    love.graphics.circle("fill", 15, 15, 4)
+    
     love.graphics.pop()
 
+    -- Draw the cheat engine text
     love.graphics.setFont(fonts.large)
     love.graphics.setColor(1, 1, 1)
     local cheatText = "Cheat Engine"
     local cheatW = fonts.large:getWidth(cheatText)
-    love.graphics.print(cheatText, ex - cheatW / 2, ey - 50)
+    love.graphics.print(cheatText, ex - cheatW / 2, ey - 110)
 
     if showPrompt then
         local prompt = "> E To Start Payload <"
         love.graphics.setFont(fonts.small)
         local pw = fonts.small:getWidth(prompt)
-        love.graphics.print(prompt, ex - pw / 2, ey + 30)
+        love.graphics.print(prompt, ex - pw / 2, ey + 40)
     end
     
     return ex, ey

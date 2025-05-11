@@ -45,10 +45,17 @@ local volume = {
     sfx = 1.0      -- relative to master
 }
 
+-- Canvas for capturing the game screen to display on the cheat engine
+local gameCanvas = nil
+
 function game.load()
     local ww, wh = love.graphics.getDimensions()
     gridOffsetX = (ww - config.gridSize * config.cellSize) / 2
     gridOffsetY = (wh - config.gridSize * config.cellSize) / 2 + 40
+    
+    -- Initialize the game canvas for the cheat engine mini-display
+    -- Using a smaller resolution for the mini-display
+    gameCanvas = love.graphics.newCanvas(ww, wh)
 
     -- Load fonts
     fonts.small = love.graphics.newFont("source/fonts/Jersey10.ttf", 16)
@@ -156,6 +163,34 @@ function game.draw()
     if powerUps.showTypingInterface then
         powerUps.draw(fonts)
         return
+    end
+    
+    -- Capture the current game state to the canvas for the mini-display
+    -- This must be done in a way that doesn't affect the main rendering
+    if gameCanvas then
+        -- Only capture if we're actively playing (not paused or game over)
+        if not gameState.isPaused() and not gameState.isGameOver() then
+            -- First, save everything about the current graphics state
+            local prevCanvas = love.graphics.getCanvas()
+            local r, g, b, a = love.graphics.getColor()
+            
+            -- Switch to our capture canvas
+            love.graphics.setCanvas(gameCanvas)
+            love.graphics.clear(0, 0, 0, 1) -- Clear with black background
+            love.graphics.setColor(1, 1, 1, 1) -- Full white for proper colors
+            
+            -- Draw a small version of the game world to the canvas
+            ui.drawGrid(gridOffsetX, gridOffsetY, config.gridSize, config.cellSize, config.gridColor)
+            enemies.draw(fonts, engine.instabilityLevel)
+            player.draw(gridOffsetX, gridOffsetY, fonts)
+            bullets.draw()
+            
+            -- Important: Switch back to the previous canvas (usually the main screen)
+            love.graphics.setCanvas(prevCanvas)
+            
+            -- Restore previous color state
+            love.graphics.setColor(r, g, b, a)
+        end
     end
 
     -- Apply camera shake
@@ -321,6 +356,11 @@ end
 -- Expose sounds to other modules
 function game.getSounds()
     return sounds
+end
+
+-- Function to get the game canvas for the mini-display
+function game.getGameCanvas()
+    return gameCanvas
 end
 
 function game.reset()
