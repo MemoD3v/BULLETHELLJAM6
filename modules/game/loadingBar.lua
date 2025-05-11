@@ -96,8 +96,6 @@ function loadingBar.update(dt)
             -- Switch to after-start music if we're past the first checkpoint and just starting
             if loadingBar.absoluteCheckpoint > 0 and oldCheckpoint == 0 then
                 if sounds and sounds.musicBeforeStart and sounds.musicAfterStart then
-                    sounds.musicBeforeStart:stop()
-                    sounds.musicAfterStart:play()
                 end
             end
         end
@@ -331,6 +329,8 @@ end
 
 function loadingBar.activate()
     loadingBar.active = true
+    sounds.musicAfterStart:stop()
+    sounds.musicBeforeStart:play()
 end
 
 function loadingBar.reset()

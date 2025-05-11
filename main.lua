@@ -12,6 +12,7 @@ effect = moonshine(moonshine.effects.filmgrain)
     effect.chromasep.radius = 1.5
 
 function love.load()
+    love._openConsole()
     game.load()
 end
 
