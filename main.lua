@@ -1,5 +1,6 @@
 local game = require("modules.init")
 local moonshine = require("libraries.moonshine")
+local mainMenu = require("modules.game.mainMenu")
 
 effect = moonshine(moonshine.effects.filmgrain)
     .chain(moonshine.effects.vignette)
@@ -12,6 +13,7 @@ effect = moonshine(moonshine.effects.filmgrain)
     effect.chromasep.radius = 1.5
 
 function love.load()
+    love._openConsole()
     game.load()
 end
 
@@ -41,3 +43,8 @@ function love.resize(w, h)
     game.resize(w, h)
 end
 
+function love.mousepressed(x, y, button)
+    if mainMenu.isActive() then
+        mainMenu.mousepressed(x, y, button)
+    end
+end
