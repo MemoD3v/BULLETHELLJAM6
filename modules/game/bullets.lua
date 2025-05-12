@@ -7,6 +7,15 @@ bullets.damageMultiplier = 1.0  -- Default multiplier, increased by Rapid Fire p
 
 -- Create a new player bullet
 function bullets.create(x, y, targetX, targetY)
+    -- Debug info
+    print("BULLET CREATE CALLED: from (" .. x .. "," .. y .. ") to (" .. targetX .. "," .. targetY .. ")")
+    
+    -- Fix for NaN direction vector
+    if x == targetX and y == targetY then
+        -- If mouse is clicked exactly on player, shoot upward
+        targetY = y - 10
+    end
+    
     -- Play bullet sound
     local sounds = require("modules.init").getSounds()
     if sounds and sounds.playerShoot then
@@ -14,21 +23,32 @@ function bullets.create(x, y, targetX, targetY)
         sounds.playerShoot:play()
     end
     
-    -- Calculate direction
+    -- Calculate direction with safeguards
     local dx = targetX - x
     local dy = targetY - y
     local length = math.sqrt(dx * dx + dy * dy)
+    
+    -- Prevent division by zero
+    if length == 0 then length = 1 end
+    
     local normalizedDx = dx / length
     local normalizedDy = dy / length
     
-    table.insert(bullets.list, {
+    -- Create the actual bullet
+    local newBullet = {
         x = x,
         y = y,
         dx = normalizedDx,  -- Use normalized direction vector
         dy = normalizedDy,  -- Use normalized direction vector
         angle = math.atan2(dy, dx),
         time = 0
-    })
+    }
+    
+    -- Insert the bullet into the list
+    table.insert(bullets.list, newBullet)
+    
+    -- Debug confirmation
+    print("Bullet created! Current bullet count: " .. #bullets.list)
 end
 
 function bullets.update(dt, enemies)

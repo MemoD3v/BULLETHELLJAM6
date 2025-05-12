@@ -424,22 +424,35 @@ function game.keypressed(key)
 end
 
 function game.mousepressed(x, y, button)
-    if powerUps.showTypingInterface then return end
+    -- Debug info
+    print("Mouse pressed: button=" .. button .. ", x=" .. x .. ", y=" .. y)
     
-    -- Check if we should allow shooting
-    local gameModes = require("modules.game.gameModes")
-    local canShoot = loadingBar.active or not gameModes.hasEndCondition() -- Allow shooting in endless mode even if loadingBar isn't active
+    -- Don't process clicks during power-up typing interface
+    if powerUps and powerUps.showTypingInterface then 
+        print("Skipping mouse input - typing interface active")
+        return 
+    end
     
-    -- Don't shoot if paused or game over
-    if not canShoot or gameState.isPaused() or gameState.isGameOver() then return end
+    -- Don't process clicks if game is paused or over
+    if gameState.isPaused() or gameState.isGameOver() then
+        print("Skipping mouse input - game paused or over")
+        return
+    end
     
-    if button == 1 then  -- Left click
+    -- COMPLETELY REVISED SHOOTING LOGIC:
+    -- Always allow shooting in all game modes
+    if button == 1 then  -- Left click = shoot
+        print("Attempting to shoot")
+        
+        -- Create a bullet directly from the bullets module
         local px, py = player.getScreenPosition(gridOffsetX, gridOffsetY)
-        bullets.create(px, py, x, y)
+        local bulletModule = require("modules.game.bullets")
+        
+        -- Create bullet directly, forcing a fresh reference to the module
+        print("Creating bullet from (" .. px .. "," .. py .. ") to (" .. x .. "," .. y .. ")")
+        bulletModule.create(px, py, x, y)
     end
 end
-
--- Special keys handling is now consolidated in the main keypressed function above
 
 -- Volume control functions
 function game.adjustVolume(volumeType, amount)
