@@ -56,15 +56,23 @@ function enemies.reset()
     enemyBullets.reset()
 end
 
-function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
+function enemies.update(dt, gridOffsetX, gridOffsetY, isLoadingBarActive)
     -- Always spawn enemies in Endless mode even if loading bar is not active
     local gameModes = require("modules.game.gameModes")
-    local shouldSpawnEnemies = loadingBar.active or not gameModes.hasEndCondition()
+    local shouldSpawnEnemies = isLoadingBarActive or not gameModes.hasEndCondition()
     
     if shouldSpawnEnemies then
         enemies.spawnTimer = enemies.spawnTimer + dt
 
-        local absoluteCheckpoint = (loadingBar.currentPhase - 1) * loadingBar.checkpointsPerPhase + loadingBar.currentCheckpoint
+        -- Get current checkpoint from gameState
+        local gameState = require("modules.game.gameState")
+        local loadingBar = require("modules.game.loadingBar")
+        
+        -- Provide a default value for absolute checkpoint to avoid nil errors
+        local absoluteCheckpoint = 0 -- Default to 0 if not available
+        if gameState and gameState.absoluteCheckpoint then
+            absoluteCheckpoint = gameState.absoluteCheckpoint
+        end
         
         -- Adjust spawn interval based on checkpoint progress and game mode
         local currentSpawnInterval = 0
@@ -105,7 +113,9 @@ function enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
         e.x = e.x + dx * e.type.speed * 60 * dt
         e.y = e.y + dy * e.type.speed * 60 * dt
         
-        if loadingBar.active and e.fireCooldown <= 0 and dist > 100 then
+        -- Check if enemies should shoot based on loading bar state and cooldown
+        local isActive = isLoadingBarActive -- Use the function parameter
+        if isActive and e.fireCooldown <= 0 and dist > 100 then
             e.fireCooldown = e.type.fireRate
             
             if e.type.bulletPattern == "single" then
@@ -251,7 +261,14 @@ end
 
 function enemies.draw(fonts, instabilityLevel)
     local currentTime = love.timer.getTime()
-    enemyBullets.draw()
+    
+    -- Get grid offset values from init module
+    local init = require("modules.init")
+    local gridOffsetX = init.getGridOffsetX and init.getGridOffsetX() or 0
+    local gridOffsetY = init.getGridOffsetY and init.getGridOffsetY() or 0
+    
+    -- Draw enemy bullets
+    enemyBullets.draw(gridOffsetX, gridOffsetY)
     
     for _, e in ipairs(enemies.list) do
         local spriteIndex = e.type.spriteIndex or 0
@@ -264,6 +281,10 @@ function enemies.draw(fonts, instabilityLevel)
             love.graphics.draw(enemySprites, quad, e.x, e.y, 0, scale, scale, spriteSize/2, spriteSize/2)
         end
 
+        -- Use the instabilityLevel parameter that was passed to the function
+        -- If it's nil, default to 0
+        instabilityLevel = instabilityLevel or 0
+        
         local wobbleX = math.sin(e.animTimer * 3) * instabilityLevel * 5
         local wobbleY = math.cos(e.animTimer * 3.5) * instabilityLevel * 5
 
@@ -289,10 +310,13 @@ function enemies.draw(fonts, instabilityLevel)
         love.graphics.setColor(0.2, 1, 0.2)
         love.graphics.rectangle("fill", -healthBarWidth/2, -e.size/2 - 10, healthBarWidth * healthRatio, healthBarHeight)
 
-        love.graphics.setFont(fonts.small)
-        love.graphics.setColor(1, 1, 1)
-        local nameWidth = fonts.small:getWidth(e.type.name)
-        love.graphics.print(e.type.name, -nameWidth/2, -e.size/2 - 25)
+        -- Only try to render text if fonts are available
+        if fonts and fonts.small then
+            love.graphics.setFont(fonts.small)
+            love.graphics.setColor(1, 1, 1)
+            local nameWidth = fonts.small:getWidth(e.type.name)
+            love.graphics.print(e.type.name, -nameWidth/2, -e.size/2 - 25)
+        end
 
         love.graphics.pop()
     end

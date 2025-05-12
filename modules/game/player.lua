@@ -402,6 +402,10 @@ function player.reset()
 end
 
 function player.getScreenPosition(gridOffsetX, gridOffsetY)
+    -- Provide default values for grid offsets if they're nil
+    gridOffsetX = gridOffsetX or 0
+    gridOffsetY = gridOffsetY or 0
+    
     local px = gridOffsetX + (player.x - 1) * config.cellSize + config.cellSize / 2
     local py = gridOffsetY + (player.y - 1) * config.cellSize + config.cellSize / 2
     return px, py

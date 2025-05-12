@@ -12,6 +12,7 @@ local ui = require("modules.game.ui")
 local gameState = require("modules.game.gameState")
 local enemyBullets = require("modules.game.enemyBullets")
 local powerUps = require("modules.game.powerUps")
+local healingOrbs = require("modules.game.healingOrbs") -- New healing orbs module
 local gameModes = require("modules.game.gameModes")
 local mainMenu = require("modules.game.mainMenu")
 local bg = require("modules.game.background")
@@ -33,6 +34,8 @@ local sounds = {
     musicBeforeStart = nil,    -- Before payload starts
     musicAfterStart = nil,     -- After payload starts
     powerUp = nil,             -- Power-up acquired
+    powerUpSpawn = nil,        -- Power-up or healing orb spawned
+    heal = nil,                -- Healing effect
     enemyDeath = nil,          -- Enemy death
     enemyShoot = nil,          -- Enemy shooting
     checkpoint = nil,          -- Checkpoint reached
@@ -76,6 +79,8 @@ function game.load()
     sounds.musicBeforeStart = love.audio.newSource("source/sfx/Before-Start {{ Glitch in the Grid.mp3", "stream")
     sounds.musicAfterStart = love.audio.newSource("source/sfx/After-Start }} Glitch in My Veins.mp3", "stream")
     sounds.powerUp = love.audio.newSource("source/sfx/PowerUp.wav", "static")
+    sounds.powerUpSpawn = love.audio.newSource("source/sfx/checkpoint.wav", "static") -- Reuse checkpoint sound
+    sounds.heal = love.audio.newSource("source/sfx/PowerUp.wav", "static") -- Reuse powerup sound for healing
     sounds.enemyDeath = love.audio.newSource("source/sfx/bad person ded.wav", "static")
     sounds.enemyShoot = love.audio.newSource("source/sfx/bad pew pew pew.wav", "static")
     sounds.checkpoint = love.audio.newSource("source/sfx/checkpoint.wav", "static")
@@ -95,8 +100,18 @@ function game.load()
     -- Initialize game modes
     gameModes.init()
     
-    -- Initialize power-ups
-    powerUps.init(gridOffsetX, gridOffsetY)
+    -- Initialize modules with safety checks
+    if player and player.init then player.init() end
+    if bullets and bullets.init then bullets.init() end
+    if enemies and enemies.init then enemies.init() end
+    if enemyBullets and enemyBullets.init then enemyBullets.init() end
+    if loadingBar and loadingBar.init then loadingBar.init() end
+    if powerUps and powerUps.init then powerUps.init(gridOffsetX, gridOffsetY) end
+    
+    -- Initialize healing orbs (make sure this happens after all other modules)
+    if healingOrbs and healingOrbs.init then
+        healingOrbs.init()
+    end
     
     -- Initialize main menu
     mainMenu.init(fonts)
@@ -114,29 +129,20 @@ function game.reset()
     
     bg.active = false
 
-    -- Reset player
-    player.reset()
+    -- Reset modules with safety checks
+    if player and player.reset then player.reset() end
+    if bullets and bullets.reset then bullets.reset() end
+    if enemies and enemies.reset then enemies.reset() end
+    if enemyBullets and enemyBullets.reset then enemyBullets.reset() end
+    if engine and engine.reset then engine.reset() end
+    if camera and camera.reset then camera.reset() end
+    if loadingBar and loadingBar.reset then loadingBar.reset() end
+    if powerUps and powerUps.reset then powerUps.reset() end
     
-    -- Reset bullets
-    bullets.reset()
-    
-    -- Reset enemies
-    enemies.reset()
-    
-    -- Reset power-ups
-    powerUps.reset()
-    
-    -- Reset loading bar
-    loadingBar.reset()
-    
-    -- Reset camera
-    camera.reset()
-    
-    -- Reset UI
-    ui.reset()
-    
-    -- Reset engine
-    engine.reset()
+    -- Reset healing orbs safely
+    if healingOrbs and healingOrbs.reset then
+        healingOrbs.reset()
+    end
     
     -- Setup new game with the current game mode
     local enemySpawnMultiplier = gameModes.getEnemySpawnMultiplier()
@@ -231,16 +237,22 @@ function game.update(dt)
     engine.update(dt, loadingBar.currentCheckpoint, player.x, player.y)
     
     -- Update bullets
-    bullets.update(dt, enemies.list)
+    bullets.update(dt)
     
     -- Update enemies
-    enemies.update(dt, loadingBar, gridOffsetX, gridOffsetY)
+    enemies.update(dt, gridOffsetX, gridOffsetY, loadingBar.active)
+    
+    -- Update enemy bullets
+    enemyBullets.update(dt)
+    
+    -- Update power-ups
+    powerUps.update(dt, gameState.absoluteCheckpoint)
+    
+    -- Update healing orbs
+    healingOrbs.update(dt, gridOffsetX, gridOffsetY) -- Update healing orbs
     
     -- Update game state
     gameState.update(dt)
-    
-    -- Update power-ups
-    powerUps.update(dt, loadingBar.absoluteCheckpoint)
     
     -- Update UI elements based on player status
     ui.updatePlayerStatus(player.getHealth())
@@ -278,8 +290,10 @@ function game.draw()
             -- Draw a small version of the game world to the canvas
             ui.drawGrid(gridOffsetX, gridOffsetY, config.gridSize, config.cellSize, config.gridColor)
             enemies.draw(fonts, engine.instabilityLevel)
+            bullets.draw(gridOffsetX, gridOffsetY)
+            enemyBullets.draw(gridOffsetX, gridOffsetY)
+            healingOrbs.draw() -- Draw healing orbs
             player.draw(gridOffsetX, gridOffsetY, fonts)
-            bullets.draw()
             
             -- Important: Switch back to the previous canvas (usually the main screen)
             love.graphics.setCanvas(prevCanvas)
@@ -294,11 +308,11 @@ function game.draw()
     local shakeX, shakeY = camera.getOffset()
     love.graphics.translate(shakeX, shakeY)
     
-    -- Draw loading bar
-    loadingBar.draw(gridOffsetX, gridOffsetY, fonts)
-    
     -- Draw grid
     ui.drawGrid(gridOffsetX, gridOffsetY, config.gridSize, config.cellSize, config.gridColor)
+    
+    -- Draw loading bar
+    loadingBar.draw(gridOffsetX, gridOffsetY, fonts)
     
     -- Draw engine
     local showPrompt = not loadingBar.active and engine.isPlayerNearby(player.x, player.y)
@@ -312,6 +326,9 @@ function game.draw()
     
     -- Draw player bullets
     bullets.draw()
+    
+    -- Draw healing orbs
+    healingOrbs.draw(gridOffsetX, gridOffsetY)
     
     -- Draw score and game status
     ui.drawScore(gameState.getScore(), fonts.small)
@@ -498,6 +515,15 @@ end
 -- Expose sounds to other modules
 function game.getSounds()
     return sounds
+end
+
+-- Add getter functions for grid offsets
+function game.getGridOffsetX()
+    return gridOffsetX
+end
+
+function game.getGridOffsetY()
+    return gridOffsetY
 end
 
 -- Function to get the game canvas for the mini-display

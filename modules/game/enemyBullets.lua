@@ -58,7 +58,10 @@ function enemyBullets.update(dt, gridOffsetX, gridOffsetY)
     end
 end
 
-function enemyBullets.draw()
+function enemyBullets.draw(gridOffsetX, gridOffsetY)
+    -- Parameters are not directly used in this function but are now accepted
+    -- to match how this function is called in enemies.draw
+    
     for _, b in ipairs(enemyBullets.list) do
         love.graphics.push()
         love.graphics.translate(b.x, b.y)

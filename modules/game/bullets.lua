@@ -51,7 +51,11 @@ function bullets.create(x, y, targetX, targetY)
     print("Bullet created! Current bullet count: " .. #bullets.list)
 end
 
-function bullets.update(dt, enemies)
+function bullets.update(dt)
+    -- Get enemies module
+    local enemies = require("modules.game.enemies")
+    
+    -- Process all bullets
     for i = #bullets.list, 1, -1 do
         local b = bullets.list[i]
         b.x = b.x + b.dx * config.bulletSpeed * dt
@@ -59,34 +63,50 @@ function bullets.update(dt, enemies)
         b.time = b.time + dt
 
         local bulletRemoved = false
-        for j = #enemies, 1, -1 do
-            local e = enemies[j]
-            local dist = math.sqrt((b.x - e.x)^2 + (b.y - e.y)^2)
-            if dist < e.size/2 + config.bulletWidth/2 then
-                -- Apply damage multiplier (from Rapid Fire power-up)
-                local damage = config.bulletDamage * bullets.damageMultiplier
-                e.health = e.health - damage
-                if e.health <= 0 then
-                    -- Increase score and apply game mode multiplier
-                    local gameModes = require("modules.game.gameModes")
-                    local scoreMultiplier = gameModes.getScoreMultiplier()
-                    gameState.increaseScore(e.type.score * scoreMultiplier)
+        -- Only process collisions if enemies list exists
+        if enemies and enemies.list and #enemies.list > 0 then
+            for j = #enemies.list, 1, -1 do
+                local e = enemies.list[j]
+                local dist = math.sqrt((b.x - e.x)^2 + (b.y - e.y)^2)
+                
+                if dist < e.size/2 + config.bulletWidth/2 then
+                    -- Apply damage multiplier (from Rapid Fire power-up)
+                    local damage = config.bulletDamage * bullets.damageMultiplier
+                    e.health = e.health - damage
                     
-                    -- Apply vampiric effect if in Vampire mode
-                    if gameModes.hasVampiricEffect() then
-                        -- Heal the loading bar progress instead of the player
-                        local loadingBar = require("modules.game.loadingBar")
-                        local healAmount = gameModes.getHealthPerKill() / 100 -- Convert from health points to progress percentage
-                        loadingBar.heal(healAmount)
+                    if e.health <= 0 then
+                        -- Enemy killed - increase score with multiplier
+                        local gameModes = require("modules.game.gameModes")
+                        local scoreMultiplier = gameModes.getScoreMultiplier()
+                        gameState.increaseScore(e.type.score * scoreMultiplier)
                         
-                        -- Visual feedback is handled in the loadingBar.heal function
+                        -- Play enemy death sound
+                        local sounds = require("modules.init").getSounds()
+                        if sounds and sounds.enemyDeath then
+                            sounds.enemyDeath:play()
+                        end
+                        
+                        -- Apply vampiric effect if in Vampire mode
+                        if gameModes.hasVampiricEffect then
+                            if gameModes.hasVampiricEffect() then
+                                -- Heal the loading bar progress instead of the player
+                                local loadingBar = require("modules.game.loadingBar")
+                                local healAmount = gameModes.getHealthPerKill() / 100
+                                if loadingBar.heal then
+                                    loadingBar.heal(healAmount)
+                                end
+                            end
+                        end
+                        
+                        -- Remove the dead enemy
+                        table.remove(enemies.list, j)
                     end
                     
-                    table.remove(enemies, j)
+                    -- Remove this bullet after hitting an enemy
+                    table.remove(bullets.list, i)
+                    bulletRemoved = true
+                    break
                 end
-                table.remove(bullets.list, i)
-                bulletRemoved = true
-                break
             end
         end
 
@@ -110,8 +130,14 @@ function bullets.draw()
     end
 end
 
+function bullets.init()
+    bullets.list = {}
+    bullets.damageMultiplier = 1.0
+end
+
 function bullets.reset()
     bullets.list = {}
+    bullets.damageMultiplier = 1.0
 end
 
 return bullets
