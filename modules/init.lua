@@ -14,6 +14,7 @@ local enemyBullets = require("modules.game.enemyBullets")
 local powerUps = require("modules.game.powerUps")
 local gameModes = require("modules.game.gameModes")
 local mainMenu = require("modules.game.mainMenu")
+local bg = require("modules.game.background")
 
 -- Grid positioning
 local gridOffsetX, gridOffsetY = 0, 0
@@ -54,6 +55,7 @@ local gameCanvas = nil
 
 function game.load()
     local ww, wh = love.graphics.getDimensions()
+    bg.init()
     gridOffsetX = (ww - config.gridSize * config.cellSize) / 2
     gridOffsetY = (wh - config.gridSize * config.cellSize) / 2 + 40
     
@@ -110,6 +112,8 @@ function game.reset()
     -- Reset game state (score, timer, etc.)
     gameState.reset()
     
+    bg.active = false
+
     -- Reset player
     player.reset()
     
@@ -161,6 +165,8 @@ function game.startGame()
  end
 
 function game.update(dt)
+    bg.update(dt)
+    
     -- Update main menu if active
     if mainMenu.isActive() then
         mainMenu.update(dt)
@@ -241,6 +247,8 @@ function game.update(dt)
 end
 
 function game.draw()
+    bg.draw()
+
     -- Draw main menu if active
     if mainMenu.isActive() then
         mainMenu.draw()
@@ -387,6 +395,7 @@ function game.keypressed(key)
     if key == "e" and not loadingBar.active and not gameState.isGameOver() then
         if engine.isPlayerNearby(player.x, player.y) then
             loadingBar.activate()
+            bg.activate()
             return
         end
     end

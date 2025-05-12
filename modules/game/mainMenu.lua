@@ -2,6 +2,10 @@ local mainMenu = {}
 
 local gameModes = require("modules.game.gameModes")
 
+mainMenu.transitionState = "none"  -- "none", "out", "in"
+mainMenu.transitionTimer = 0
+mainMenu.transitionDuration = 0.5  -- seconds
+
 mainMenu.active = true
 mainMenu.currentScreen = "main"
 mainMenu.hoveredOption = nil
@@ -37,25 +41,56 @@ end
 
 function mainMenu.update(dt)
     if not mainMenu.active then return end
-    mainMenu.animTimer = mainMenu.animTimer + dt
-    mainMenu.titleScale = 1.0 + 0.05 * math.sin(mainMenu.animTimer * 3)
+    
+    -- Update transition timer if transitioning
+    if mainMenu.transitionState ~= "none" then
+        mainMenu.transitionTimer = mainMenu.transitionTimer + dt
+        if mainMenu.transitionTimer >= mainMenu.transitionDuration then
+            if mainMenu.transitionState == "out" then
+                mainMenu.active = false
+                mainMenu.transitionState = "none"
+            end
+        end
+    end
+    
+    -- Only update animations if not transitioning out
+    if mainMenu.transitionState ~= "out" then
+        mainMenu.animTimer = mainMenu.animTimer + dt
+        mainMenu.titleScale = 1.0 + 0.05 * math.sin(mainMenu.animTimer * 3)
 
-    if mainMenu.animTimer - mainMenu.lastTitleChange > 1 then
-        mainMenu.lastTitleChange = mainMenu.animTimer
-        if math.random() < 0.3 then
-            mainMenu.titleGlitchText = "GL1TCH !N THE GR!D"
-        else
-            mainMenu.titleGlitchText = "GLITCH IN THE GRID"
+        if mainMenu.animTimer - mainMenu.lastTitleChange > 1 then
+            mainMenu.lastTitleChange = mainMenu.animTimer
+            if math.random() < 0.3 then
+                mainMenu.titleGlitchText = "GL1TCH !N THE GR!D"
+            else
+                mainMenu.titleGlitchText = "GLITCH IN THE GRID"
+            end
         end
     end
 end
 
 function mainMenu.draw()
-    if not mainMenu.active then return end
+    if not mainMenu.active and mainMenu.transitionState ~= "out" then return end
+
+    -- Calculate transition progress (0 to 1)
+    local transitionProgress = mainMenu.transitionTimer / mainMenu.transitionDuration
+    local alpha = 1.0
+    
+    if mainMenu.transitionState == "out" then
+        alpha = 1.0 - transitionProgress
+    end
 
     local flicker = 0.95 + 0.05 * math.sin(mainMenu.animTimer * 40)
-    love.graphics.setColor(0, 0, 0, flicker)
+    love.graphics.setColor(0, 0, 0, flicker * alpha)
     love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
+
+    -- Apply transition effect (slide down)
+    love.graphics.push()
+    if mainMenu.transitionState == "out" then
+        local offsetY = transitionProgress * love.graphics.getHeight() * 0.2
+        love.graphics.translate(0, offsetY)
+        love.graphics.setColor(1, 1, 1, alpha * 0.8)
+    end
 
     mainMenu.drawGlitchPolygon()
 
@@ -64,6 +99,8 @@ function mainMenu.draw()
     elseif mainMenu.currentScreen == "modes" then
         mainMenu.drawModesScreen()
     end
+    
+    love.graphics.pop()
 end
 
 function mainMenu.drawGlitchPolygon()
@@ -361,14 +398,19 @@ function mainMenu.handleModesMenuKeypress(key)
 end
 
 function mainMenu.startGame()
-    mainMenu.active = false
+    mainMenu.transitionState = "out"
+    mainMenu.transitionTimer = 0
 end
 
 function mainMenu.show()
+    mainMenu.transitionState = "in"
+    mainMenu.transitionTimer = 0
     mainMenu.active = true
     mainMenu.currentScreen = "main"
-end
+    if Background and Background.setMode then
 
+    end
+end
 function mainMenu.isActive()
     return mainMenu.active
 end
