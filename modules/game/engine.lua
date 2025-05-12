@@ -120,16 +120,17 @@ function engine.draw(gridOffsetX, gridOffsetY, fonts)
     love.graphics.setColor(0.8, 0.2, 0.2)
     love.graphics.rectangle("fill", -25, -25, 50, 50)
     
-    -- Draw the mini-monitor frame
+    --[[ -- Draw the mini-monitor frame
     love.graphics.setColor(0.1, 0.1, 0.1)
     love.graphics.rectangle("fill", -40, -80, 80, 50)  -- Monitor base
+    ]]
     
     -- Get the game canvas from init module
     local gameCanvas = require("modules.init").getGameCanvas()
     
     -- Draw the mini game screen if available
     if gameCanvas then
-        -- Draw a monitor background first (dark gray)
+       --[[] -- Draw a monitor background first (dark gray)
         love.graphics.setColor(0.1, 0.1, 0.1, 1)
         love.graphics.rectangle("fill", -35, -75, 70, 45) -- Screen background
         
@@ -150,6 +151,7 @@ function engine.draw(gridOffsetX, gridOffsetY, fonts)
         -- Draw screen glint
         love.graphics.setColor(1, 1, 1, 0.2 + 0.1 * math.sin(love.timer.getTime() * 2))
         love.graphics.polygon("fill", -35, -75, -15, -75, -30, -60, -35, -65)
+        ]]
     end
     
     -- Draw flashing lights/buttons

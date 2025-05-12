@@ -3,6 +3,7 @@ local background = {}
 background.active = false
 
 function background.init()
+    -- Configuration with default values
     background.config = {
         particleCount = 150,
         baseSpeed = 50,
@@ -67,15 +68,12 @@ function background:_resetParticles()
     for i = 1, background.config.particleCount do
         local baseColor = background.config.colors[math.random(#background.config.colors)]
         local colorVariation = background.config.colorVariation
-        local color = {
+        local color = background.active and {
             math.min(1, math.max(0, baseColor[1] + (math.random() * 2 - 1) * colorVariation)),
             math.min(1, math.max(0, baseColor[2] + (math.random() * 2 - 1) * colorVariation)),
             math.min(1, math.max(0, baseColor[3] + (math.random() * 2 - 1) * colorVariation)),
             baseColor[4]
-        }
-
-        local noiseOffsetX = math.random() * 1000
-        local noiseOffsetY = math.random() * 1000
+        } or {1, 1, 1, 0.2}
 
         table.insert(background.particles, {
             x = math.random() * background.screenWidth,
@@ -88,8 +86,8 @@ function background:_resetParticles()
             baseAlpha = color[4],
             twinklePhase = math.random() * math.pi * 2,
             pulsePhase = math.random() * math.pi * 2,
-            noiseOffsetX = noiseOffsetX,
-            noiseOffsetY = noiseOffsetY,
+            noiseOffsetX = math.random() * 1000,
+            noiseOffsetY = math.random() * 1000,
             orbitPhase = math.random() * math.pi * 2,
             shape = background.config.shapeTypes[math.random(#background.config.shapeTypes)],
             rotation = math.random() * math.pi * 2,
@@ -99,8 +97,15 @@ function background:_resetParticles()
 end
 
 function background.activate()
-    background.active = true
+    background.active = true -- Set before reset
+    background:_resetParticles()
 end
+
+function background.deactivate()
+    background.active = false -- Set before reset
+    background:_resetParticles()
+end
+
 
 function background.update(dt)
     background.time = background.time + dt
@@ -132,7 +137,8 @@ function background.update(dt)
         elseif background.config.movementType == "swirl" then
             local cx = background.config.swirlCenter.x * background.screenWidth
             local cy = background.config.swirlCenter.y * background.screenHeight
-            local dx, dy = p.x - cx, p.y - cy
+            local dx = p.x - cx
+            local dy = p.y - cy
             local dist = math.sqrt(dx*dx + dy*dy)
             if dist > 10 then
                 p.angle = math.atan2(dy, dx) + math.pi/2 * background.config.swirlStrength
@@ -173,7 +179,7 @@ function background.update(dt)
 
         if background.config.enableTwinkle then
             p.twinklePhase = p.twinklePhase + dt * background.config.twinkleSpeed
-            local twinkle = math.sin(p.twinklePhase) * 0.2 + 0.8
+            local twinkle = (math.sin(p.twinklePhase) * 0.2 + 0.8)
             p.color[4] = p.baseAlpha * twinkle
         end
 
@@ -210,32 +216,42 @@ function background:_drawGradientBackground()
     local c2 = background.config.gradientColors[2]
     love.graphics.setColor(c1)
     love.graphics.rectangle("fill", 0, 0, background.screenWidth, background.screenHeight)
+
     local mesh = love.graphics.newMesh({
         {0, 0, c1[1], c1[2], c1[3], c1[4]},
         {background.screenWidth, 0, c1[1], c1[2], c1[3], c1[4]},
         {background.screenWidth, background.screenHeight, c2[1], c2[2], c2[3], c2[4]},
         {0, background.screenHeight, c2[1], c2[2], c2[3], c2[4]}
     }, "fan", "static")
+
     love.graphics.draw(mesh)
 end
 
 function background:_drawConnections()
     if not background.config.enableConnections then return end
     love.graphics.setLineWidth(background.config.connectionWidth)
+
     for i = 1, #background.particles do
         local p1 = background.particles[i]
-        local connections = 0
+        local connectionsCount = 0
+
         for j = i + 1, #background.particles do
-            if connections >= background.config.maxConnections then break end
+            if background.config.connectionOptimization and connectionsCount >= background.config.maxConnections then
+                break
+            end
+
             local p2 = background.particles[j]
-            local dx, dy = p1.x - p2.x, p1.y - p2.y
+            local dx = p1.x - p2.x
+            local dy = p1.y - p2.y
             local distSq = dx*dx + dy*dy
+
             if distSq < background.config.connectionDistance * background.config.connectionDistance then
                 local dist = math.sqrt(distSq)
                 local alpha = (1 - dist / background.config.connectionDistance) * background.config.connectionColor[4]
-                love.graphics.setColor(background.config.connectionColor[1], background.config.connectionColor[2], background.config.connectionColor[3], alpha)
+                love.graphics.setColor(background.config.connectionColor[1], background.config.connectionColor[2],
+                    background.config.connectionColor[3], alpha)
                 love.graphics.line(p1.x, p1.y, p2.x, p2.y)
-                connections = connections + 1
+                connectionsCount = connectionsCount + 1
             end
         end
     end
@@ -252,7 +268,9 @@ function background.draw()
     if background.config.enableTrails then
         for _, t in ipairs(background.trails) do
             local alpha = t.color[4] * (1 - t.time / (background.config.trailFrames * 0.016))
-            background:_drawParticle(t.x, t.y, t.size, {t.color[1], t.color[2], t.color[3], alpha}, t.shape, t.rotation)
+            background:_drawParticle(t.x, t.y, t.size,
+                {t.color[1], t.color[2], t.color[3], alpha},
+                t.shape, t.rotation)
         end
     end
 
@@ -260,7 +278,6 @@ function background.draw()
 
     for _, p in ipairs(background.particles) do
         local alpha = p.color[4]
-        if not background.active then alpha = 0.2 end
 
         if background.config.enableFadeEdges then
             local edgeX = math.min(p.x, background.screenWidth - p.x)
@@ -271,7 +288,9 @@ function background.draw()
             end
         end
 
-        background:_drawParticle(p.x, p.y, p.size, {p.color[1], p.color[2], p.color[3], alpha}, p.shape, p.rotation)
+        background:_drawParticle(p.x, p.y, p.size,
+            {p.color[1], p.color[2], p.color[3], alpha},
+            p.shape, p.rotation)
     end
 end
 
