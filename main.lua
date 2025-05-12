@@ -15,6 +15,7 @@ effect = moonshine(moonshine.effects.filmgrain)
 
 function love.load()
     -- Removed console opening call that was causing errors
+    love._openConsole()
     game.load()
 end
 

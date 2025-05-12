@@ -2,6 +2,8 @@ local player = {}
 local config = require("modules.game.config")
 local bullets = require("modules.game.bullets")
 
+local playerSprite = love.graphics.newImage("source/sprites/player.png")
+
 -- Player state
 player.x = 4
 player.y = 4
@@ -264,129 +266,108 @@ function player.draw(gridOffsetX, gridOffsetY, fonts)
     local px, py
     local gameModes = require("modules.game.gameModes")
     
-    -- Use exact position for RogueLike mode, grid-based position for other modes
     if gameModes.isRogueLike() and player.realX ~= 0 then
-        -- For RogueLike mode, use the continuous position
         px = player.realX - config.playerSize / 2
         py = player.realY - config.playerSize / 2
     else
-        -- For other modes, use the grid position
         px = gridOffsetX + (player.x - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
         py = gridOffsetY + (player.y - 1) * config.cellSize + (config.cellSize - config.playerSize) / 2
     end
-    
-    -- Draw passive nuke explosion effect if active
+
+    -- Passive nuke effect
     if player.passiveNukeEffectTime > 0 then
-        local effectProgress = 1 - (player.passiveNukeEffectTime / 1.0) -- 1.0 seconds is full duration
-        local maxRadius = player.passiveNukeRadius -- Maximum radius of the explosion
+        local effectProgress = 1 - (player.passiveNukeEffectTime / 1.0)
+        local maxRadius = player.passiveNukeRadius
         local currentRadius = maxRadius * effectProgress
-        
-        -- Draw expanding explosion wave
-        local alpha = 0.8 - effectProgress * 0.8 -- Fade out as it expands
+        local alpha = 0.8 - effectProgress * 0.8
         love.graphics.setColor(1, 0.4, 0.1, alpha)
         love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, currentRadius)
-        
-        -- Draw bright inner ring
         love.graphics.setColor(1, 0.8, 0.2, alpha * 1.5)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.9)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.8)
     end
-    
-    -- Draw shield if active
+
+    -- Shield effect
     if player.shieldEnabled then
-        -- Draw shield effect
         local shieldSize = config.playerSize * 1.5
         local shieldX = px + config.playerSize/2 - shieldSize/2
         local shieldY = py + config.playerSize/2 - shieldSize/2
-        
-        -- Pulsating effect
         local pulseAmount = 0.2 + math.sin(love.timer.getTime() * 5) * 0.1
-        
-        -- Draw shield
         love.graphics.setColor(0.3, 0.8, 0.9, pulseAmount + 0.2)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, shieldSize/2 + 2)
         love.graphics.setColor(0.3, 0.8, 0.9, pulseAmount * 0.5)
         love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, shieldSize/2)
     end
-    
-    -- Draw dash cooldown indicator if dash is enabled
+
+    -- Dash cooldown indicator
     if player.dashEnabled then
         local dashReadyPercentage = 1 - (player.currentDashCooldown / player.dashCooldown)
-        
-        -- Draw dash cooldown ring
         local ringRadius = config.playerSize * 0.8
         love.graphics.setColor(0.2, 0.2, 0.2, 0.5)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, ringRadius)
-        
+
         if dashReadyPercentage < 1 then
-            -- Draw cooldown arc (partial)
             love.graphics.setColor(0.4, 0.6, 1, 0.8)
             local segments = 32
             local startAngle = -math.pi/2
             local endAngle = startAngle + (math.pi * 2 * dashReadyPercentage)
-            
             for i = 1, segments do
                 local currAngle = startAngle + (i-1) * (endAngle - startAngle) / segments
                 local nextAngle = startAngle + i * (endAngle - startAngle) / segments
-                
                 if nextAngle <= endAngle then
                     local x1 = px + config.playerSize/2 + math.cos(currAngle) * ringRadius
                     local y1 = py + config.playerSize/2 + math.sin(currAngle) * ringRadius
                     local x2 = px + config.playerSize/2 + math.cos(nextAngle) * ringRadius
                     local y2 = py + config.playerSize/2 + math.sin(nextAngle) * ringRadius
-                    
                     love.graphics.line(x1, y1, x2, y2)
                 end
             end
         else
-            -- Dash is ready, show full circle
             love.graphics.setColor(0.4, 0.7, 1, 0.8)
             love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, ringRadius)
         end
     end
-    
-    -- Draw player with flashing effect if invulnerable
+
+    -- Set color based on state
     if player.invulnerabilityTimer > 0 and math.floor(player.invulnerabilityTimer * 10) % 2 == 0 then
         love.graphics.setColor(1, 1, 1, 0.5)
     elseif player.damageFlashTimer > 0 then
-        -- Flash red when damaged
         love.graphics.setColor(1, 0.3, 0.3, 1)
     else
-        love.graphics.setColor(config.playerColor)
+        love.graphics.setColor(1, 1, 1, 1) -- White for full sprite color
     end
-    
-    love.graphics.rectangle("fill", px, py, config.playerSize, config.playerSize)
-    
-    -- Draw nuke explosion effect if active
+
+    -- Draw player sprite
+    local sprite = player.sprite or love.graphics.newImage("source/sprites/player.png")
+    local spriteW, spriteH = sprite:getDimensions()
+    local scale = config.playerSize / math.max(spriteW, spriteH)
+    local offsetX = (config.playerSize - spriteW * scale) / 2
+    local offsetY = (config.playerSize - spriteH * scale) / 2
+    love.graphics.draw(sprite, px + offsetX, py + offsetY, 0, scale, scale)
+
+    -- Nuke explosion effect
     if player.nukeEffectTime and player.nukeEffectTime > 0 then
-        local effectProgress = 1 - (player.nukeEffectTime / 0.5) -- 0.5 seconds is full duration
-        local maxRadius = 800 -- Maximum radius of the explosion
+        local effectProgress = 1 - (player.nukeEffectTime / 0.5)
+        local maxRadius = 800
         local currentRadius = maxRadius * effectProgress
-        
-        -- Draw expanding explosion wave
-        local alpha = 0.8 - effectProgress * 0.8 -- Fade out as it expands
+        local alpha = 0.8 - effectProgress * 0.8
         love.graphics.setColor(1, 0.4, 0.1, alpha)
         love.graphics.circle("fill", px + config.playerSize/2, py + config.playerSize/2, currentRadius)
-        
-        -- Draw bright inner ring
         love.graphics.setColor(1, 0.8, 0.2, alpha * 1.5)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.9)
         love.graphics.circle("line", px + config.playerSize/2, py + config.playerSize/2, currentRadius * 0.8)
     end
-    
-    -- Draw health bar
+
+    -- Health bar
     local healthBarWidth = config.playerSize
     local healthBarHeight = 5
     local healthPercentage = player.health / player.maxHealth
-    
-    -- Health bar background
     love.graphics.setColor(0.2, 0.2, 0.2, 0.8)
     love.graphics.rectangle("fill", px, py - 10, healthBarWidth, healthBarHeight)
-    
-    -- Health bar fill
     love.graphics.setColor(0.2, 0.8, 0.2, 1)
     love.graphics.rectangle("fill", px, py - 10, healthBarWidth * healthPercentage, healthBarHeight)
 end
+
 
 function player.reset()
     player.x = math.ceil(config.gridSize / 2)

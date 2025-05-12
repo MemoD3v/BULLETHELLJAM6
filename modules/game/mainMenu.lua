@@ -92,6 +92,9 @@ function mainMenu.draw()
     -- Background effect
     local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
     
+    love.graphics.setColor(1,0,0)
+    mainMenu.drawGlitchPolygon()
+
     -- Draw grid background
     love.graphics.setColor(0.1, 0.1, 0.2, 0.3)
     local gridSize = 30
