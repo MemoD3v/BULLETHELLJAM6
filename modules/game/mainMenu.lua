@@ -27,6 +27,23 @@ mainMenu.sideOptions = {
     { text = "Credits", action = "credits" }
 }
 
+-- Audio settings variables
+mainMenu.audioSettings = {
+    masterVolume = 1.0,
+    musicVolume = 1.0,
+    sfxVolume = 1.0,
+    sliderWidth = 200,
+    sliderHeight = 10,
+    draggingSlider = nil  -- Which slider is being dragged
+}
+
+-- Credits information
+mainMenu.credits = {
+    { label = "Development by", value = "Hakashi Katake and MemoDev" },
+    { label = "Art by", value = "Boony62" },
+    { label = "Music by", value = "MemoDev" }
+}
+
 mainMenu.buttonWidth = 200
 mainMenu.buttonHeight = 50
 mainMenu.buttonSpacing = 20
@@ -72,35 +89,42 @@ end
 function mainMenu.draw()
     if not mainMenu.active and mainMenu.transitionState ~= "out" then return end
 
-    -- Calculate transition progress (0 to 1)
-    local transitionProgress = mainMenu.transitionTimer / mainMenu.transitionDuration
-    local alpha = 1.0
+    -- Background effect
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
     
-    if mainMenu.transitionState == "out" then
-        alpha = 1.0 - transitionProgress
+    -- Draw grid background
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.3)
+    local gridSize = 30
+    for x = 0, screenW, gridSize do
+        love.graphics.line(x, 0, x, screenH)
     end
-
-    local flicker = 0.95 + 0.05 * math.sin(mainMenu.animTimer * 40)
-    love.graphics.setColor(0, 0, 0, flicker * alpha)
-    love.graphics.rectangle("fill", 0, 0, love.graphics.getWidth(), love.graphics.getHeight())
-
-    -- Apply transition effect (slide down)
-    love.graphics.push()
-    if mainMenu.transitionState == "out" then
-        local offsetY = transitionProgress * love.graphics.getHeight() * 0.2
-        love.graphics.translate(0, offsetY)
-        love.graphics.setColor(1, 1, 1, alpha * 0.8)
+    for y = 0, screenH, gridSize do
+        love.graphics.line(0, y, screenW, y)
     end
-
-    mainMenu.drawGlitchPolygon()
-
+    
+    -- Draw appropriate screen based on current state
     if mainMenu.currentScreen == "main" then
         mainMenu.drawMainScreen()
     elseif mainMenu.currentScreen == "modes" then
         mainMenu.drawModesScreen()
+    elseif mainMenu.currentScreen == "settings" then
+        mainMenu.drawSettingsScreen()
+    elseif mainMenu.currentScreen == "credits" then
+        mainMenu.drawCreditsScreen()
     end
     
-    love.graphics.pop()
+    -- Draw transition overlay
+    if mainMenu.transitionState ~= "none" then
+        local progress = mainMenu.transitionTimer / mainMenu.transitionDuration
+        local alpha
+        if mainMenu.transitionState == "out" then
+            alpha = progress
+        else
+            alpha = 1 - progress
+        end
+        love.graphics.setColor(0, 0, 0, alpha)
+        love.graphics.rectangle("fill", 0, 0, screenW, screenH)
+    end
 end
 
 function mainMenu.drawGlitchPolygon()
@@ -291,10 +315,210 @@ function mainMenu.drawModesScreen()
     love.graphics.print(instructions, centerX - instructionsWidth/2, screenH - 40)
 end
 
+-- Draw the Settings Screen
+function mainMenu.drawSettingsScreen()
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    local centerX = screenW / 2
+    
+    -- Title
+    love.graphics.setFont(mainMenu.fonts.extraLarge)
+    love.graphics.setColor(0.9, 0.9, 1.0, 0.9)
+    local title = "Audio Settings"
+    local titleWidth = mainMenu.fonts.extraLarge:getWidth(title)
+    love.graphics.print(title, centerX - titleWidth / 2, 60)
+    
+    -- Settings panel background
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.7)
+    local panelWidth = 400
+    local panelHeight = 300
+    local panelX = centerX - panelWidth / 2
+    local panelY = 120
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 10, 10)
+    love.graphics.setColor(0.3, 0.3, 0.5, 0.5)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 10, 10)
+    
+    -- Draw sliders
+    love.graphics.setFont(mainMenu.fonts.large)
+    
+    -- Master Volume
+    local sliderY = panelY + 40
+    love.graphics.setColor(0.8, 0.8, 1.0, 0.9)
+    love.graphics.print("Master Volume", panelX + 30, sliderY)
+    mainMenu.drawVolumeSlider("master", panelX + 30, sliderY + 40, mainMenu.audioSettings.sliderWidth)
+    
+    -- Music Volume
+    sliderY = sliderY + 80
+    love.graphics.setColor(0.8, 0.8, 1.0, 0.9)
+    love.graphics.print("Music Volume", panelX + 30, sliderY)
+    mainMenu.drawVolumeSlider("music", panelX + 30, sliderY + 40, mainMenu.audioSettings.sliderWidth)
+    
+    -- SFX Volume
+    sliderY = sliderY + 80
+    love.graphics.setColor(0.8, 0.8, 1.0, 0.9)
+    love.graphics.print("SFX Volume", panelX + 30, sliderY)
+    mainMenu.drawVolumeSlider("sfx", panelX + 30, sliderY + 40, mainMenu.audioSettings.sliderWidth)
+    
+    -- Back button
+    local backX = 40
+    local backY = screenH - 100
+    local buttonWidth = 160
+    local buttonHeight = 50
+    local mx, my = love.mouse.getPosition()
+    local hovered = mx > backX and mx < backX + buttonWidth and my > backY and my < backY + buttonHeight
+    
+    love.graphics.setColor(hovered and {0.6, 0.6, 1, 0.9} or {0.3, 0.3, 0.5, 0.7})
+    love.graphics.rectangle("fill", backX, backY, buttonWidth, buttonHeight, 12, 12)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Back", backX + buttonWidth / 2 - mainMenu.fonts.large:getWidth("Back") / 2, backY + buttonHeight / 2 - mainMenu.fonts.large:getHeight() / 2)
+    
+    -- Instructions
+    love.graphics.setFont(mainMenu.fonts.small)
+    love.graphics.setColor(0.6, 0.6, 0.6, 0.5)
+    local instructions = "Click and drag sliders to adjust volume"
+    local instructionsWidth = mainMenu.fonts.small:getWidth(instructions)
+    love.graphics.print(instructions, centerX - instructionsWidth/2, screenH - 40)
+end
+
+-- Draw volume slider with current value
+function mainMenu.drawVolumeSlider(type, x, y, width)
+    local height = mainMenu.audioSettings.sliderHeight
+    local value = 0
+    
+    if type == "master" then
+        value = mainMenu.audioSettings.masterVolume
+    elseif type == "music" then
+        value = mainMenu.audioSettings.musicVolume
+    elseif type == "sfx" then
+        value = mainMenu.audioSettings.sfxVolume
+    end
+    
+    -- Background
+    love.graphics.setColor(0.2, 0.2, 0.3, 0.8)
+    love.graphics.rectangle("fill", x, y, width, height, height/2, height/2)
+    
+    -- Fill based on value
+    love.graphics.setColor(0.4, 0.6, 1.0, 0.9)
+    love.graphics.rectangle("fill", x, y, width * value, height, height/2, height/2)
+    
+    -- Slider handle
+    love.graphics.setColor(0.9, 0.9, 1.0, 1.0)
+    local handleX = x + width * value
+    local handleSize = height * 2
+    love.graphics.circle("fill", handleX, y + height/2, handleSize/2)
+    
+    -- Value text
+    love.graphics.setFont(mainMenu.fonts.small)
+    local valueText = math.floor(value * 100) .. "%"
+    love.graphics.print(valueText, x + width + 10, y - 5)
+end
+
+-- Draw the Credits Screen
+function mainMenu.drawCreditsScreen()
+    local screenW, screenH = love.graphics.getWidth(), love.graphics.getHeight()
+    local centerX = screenW / 2
+    
+    -- Title
+    love.graphics.setFont(mainMenu.fonts.extraLarge)
+    love.graphics.setColor(0.9, 0.9, 1.0, 0.9)
+    local title = "Credits"
+    local titleWidth = mainMenu.fonts.extraLarge:getWidth(title)
+    love.graphics.print(title, centerX - titleWidth / 2, 60)
+    
+    -- Credits panel background
+    love.graphics.setColor(0.1, 0.1, 0.2, 0.7)
+    local panelWidth = 500
+    local panelHeight = 300
+    local panelX = centerX - panelWidth / 2
+    local panelY = 120
+    love.graphics.rectangle("fill", panelX, panelY, panelWidth, panelHeight, 10, 10)
+    love.graphics.setColor(0.3, 0.3, 0.5, 0.5)
+    love.graphics.rectangle("line", panelX, panelY, panelWidth, panelHeight, 10, 10)
+    
+    -- Credits content
+    love.graphics.setFont(mainMenu.fonts.large)
+    local creditY = panelY + 50
+    local spacing = 70
+    
+    for i, credit in ipairs(mainMenu.credits) do
+        -- Label (what they did)
+        love.graphics.setColor(0.7, 0.9, 1.0, 0.9)
+        love.graphics.print(credit.label, panelX + 40, creditY)
+        
+        -- Value (who did it)
+        love.graphics.setColor(1.0, 1.0, 1.0, 0.9)
+        love.graphics.print(credit.value, panelX + 40, creditY + 30)
+        
+        creditY = creditY + spacing
+    end
+    
+    -- Back button
+    local backX = 40
+    local backY = screenH - 100
+    local buttonWidth = 160
+    local buttonHeight = 50
+    local mx, my = love.mouse.getPosition()
+    local hovered = mx > backX and mx < backX + buttonWidth and my > backY and my < backY + buttonHeight
+    
+    love.graphics.setColor(hovered and {0.6, 0.6, 1, 0.9} or {0.3, 0.3, 0.5, 0.7})
+    love.graphics.rectangle("fill", backX, backY, buttonWidth, buttonHeight, 12, 12)
+    love.graphics.setColor(1, 1, 1)
+    love.graphics.print("Back", backX + buttonWidth / 2 - mainMenu.fonts.large:getWidth("Back") / 2, backY + buttonHeight / 2 - mainMenu.fonts.large:getHeight() / 2)
+    
+    -- Special thanks
+    love.graphics.setFont(mainMenu.fonts.small)
+    love.graphics.setColor(0.6, 0.6, 0.6, 0.5)
+    local thanksText = "Special thanks to the LÖVE2D community"
+    local thanksWidth = mainMenu.fonts.small:getWidth(thanksText)
+    love.graphics.print(thanksText, centerX - thanksWidth/2, screenH - 40)
+end
+
 function mainMenu.mousepressed(x, y, button)
     if not mainMenu.active or button ~= 1 then return end
     local mx, my = x, y
+    
+    -- Check common back button for all screens except main
+    if mainMenu.currentScreen ~= "main" then
+        local backX = 40
+        local backY = love.graphics.getHeight() - 100
+        local buttonWidth = 160
+        local buttonHeight = 50
+        
+        if mx > backX and mx < backX + buttonWidth and my > backY and my < backY + buttonHeight then
+            mainMenu.currentScreen = "main"
+            return
+        end
+    end
 
+    -- Handle settings screen interactions
+    if mainMenu.currentScreen == "settings" then
+        local screenW = love.graphics.getWidth()
+        local centerX = screenW / 2
+        local panelWidth = 400
+        local panelX = centerX - panelWidth / 2
+        local panelY = 120
+        
+        -- Check for slider interactions
+        local sliderY = panelY + 40 + 40 -- Master volume slider Y
+        if my >= sliderY and my <= sliderY + mainMenu.audioSettings.sliderHeight * 2 then
+            mainMenu.audioSettings.draggingSlider = "master"
+            mainMenu.updateSliderValue(mx, panelX + 30, mainMenu.audioSettings.sliderWidth, "master")
+        end
+        
+        sliderY = sliderY + 80 -- Music volume slider Y
+        if my >= sliderY and my <= sliderY + mainMenu.audioSettings.sliderHeight * 2 then
+            mainMenu.audioSettings.draggingSlider = "music"
+            mainMenu.updateSliderValue(mx, panelX + 30, mainMenu.audioSettings.sliderWidth, "music")
+        end
+        
+        sliderY = sliderY + 80 -- SFX volume slider Y
+        if my >= sliderY and my <= sliderY + mainMenu.audioSettings.sliderHeight * 2 then
+            mainMenu.audioSettings.draggingSlider = "sfx"
+            mainMenu.updateSliderValue(mx, panelX + 30, mainMenu.audioSettings.sliderWidth, "sfx")
+        end
+        
+        return
+    end
+    
     if mainMenu.currentScreen == "modes" then
         local backX, backY = 40, love.graphics.getHeight() - 100
         local buttonWidth, buttonHeight = 160, 50
@@ -343,7 +567,11 @@ function mainMenu.mousepressed(x, y, button)
         for i, option in ipairs(mainMenu.sideOptions) do
             local y = baseY + (#mainMenu.mainOptions)*(mainMenu.buttonHeight + mainMenu.buttonSpacing) - i*(mainMenu.buttonHeight + mainMenu.buttonSpacing)
             if mx > leftX and mx < leftX + mainMenu.buttonWidth and my > y and my < y + mainMenu.buttonHeight then
-                print("Selected: " .. option.text .. " (not implemented)")
+                if option.action == "settings" then
+                    mainMenu.currentScreen = "settings"
+                elseif option.action == "credits" then
+                    mainMenu.currentScreen = "credits"
+                end
                 return
             end
         end
@@ -353,6 +581,12 @@ end
 function mainMenu.keypressed(key)
     if not mainMenu.active then return end
 
+    if key == "escape" then
+        if mainMenu.currentScreen == "modes" or mainMenu.currentScreen == "settings" or mainMenu.currentScreen == "credits" then
+            mainMenu.currentScreen = "main"
+        end
+    end
+    
     if mainMenu.currentScreen == "main" then
         mainMenu.handleMainMenuKeypress(key)
     elseif mainMenu.currentScreen == "modes" then
@@ -398,8 +632,59 @@ function mainMenu.handleModesMenuKeypress(key)
 end
 
 function mainMenu.startGame()
+    local loadingBar = require("modules.game.loadingBar")
     mainMenu.transitionState = "out"
     mainMenu.transitionTimer = 0
+    
+    -- Reset loading bar and activate it
+    loadingBar.reset()
+    loadingBar.activate()
+end
+
+-- Update slider values based on mouse position
+function mainMenu.updateSliderValue(mx, sliderX, sliderWidth, type)
+    local value = math.max(0, math.min(1, (mx - sliderX) / sliderWidth))
+    
+    if type == "master" then
+        mainMenu.audioSettings.masterVolume = value
+        -- Apply master volume
+        local volume = require("modules.init").getVolume()
+        volume.master = value
+        require("modules.init").applyVolumeSettings()
+    elseif type == "music" then
+        mainMenu.audioSettings.musicVolume = value
+        -- Apply music volume
+        local volume = require("modules.init").getVolume()
+        volume.music = value
+        require("modules.init").applyVolumeSettings()
+    elseif type == "sfx" then
+        mainMenu.audioSettings.sfxVolume = value
+        -- Apply SFX volume
+        local volume = require("modules.init").getVolume()
+        volume.sfx = value
+        require("modules.init").applyVolumeSettings()
+    end
+end
+
+-- Add mouse moved handler for sliders
+function mainMenu.mousemoved(x, y)
+    if not mainMenu.active then return end
+    
+    if mainMenu.audioSettings.draggingSlider then
+        local screenW = love.graphics.getWidth()
+        local centerX = screenW / 2
+        local panelWidth = 400
+        local panelX = centerX - panelWidth / 2
+        
+        mainMenu.updateSliderValue(x, panelX + 30, mainMenu.audioSettings.sliderWidth, mainMenu.audioSettings.draggingSlider)
+    end
+end
+
+-- Handle mouse release for sliders
+function mainMenu.mousereleased(x, y, button)
+    if mainMenu.audioSettings.draggingSlider then
+        mainMenu.audioSettings.draggingSlider = nil
+    end
 end
 
 function mainMenu.show()

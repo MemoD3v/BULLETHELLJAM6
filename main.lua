@@ -14,12 +14,7 @@ effect = moonshine(moonshine.effects.filmgrain)
     effect.chromasep.radius = 1.5
 
 function love.load()
-<<<<<<< HEAD
-    -- Removed console opening call that was causing errors - ok !
-    love._openConsole()
-=======
     -- Removed console opening call that was causing errors
->>>>>>> ce3de81549fccb84ffede21ed32c74ad776830d5
     game.load()
 end
 
@@ -56,8 +51,4 @@ end
 
 function love.resize(w, h)
     game.resize(w, h)
-<<<<<<< HEAD
 end
-=======
-end
->>>>>>> ce3de81549fccb84ffede21ed32c74ad776830d5

@@ -184,22 +184,34 @@ end
 function enemies.spawn(absoluteCheckpoint, gridOffsetX, gridOffsetY)
     -- Get enemy spawn multiplier from the game mode
     local gameModes = require("modules.game.gameModes")
+    local loadingBar = require("modules.game.loadingBar")
     local enemyMultiplier = gameModes.getEnemySpawnMultiplier()
     
-    -- Calculate base spawn count based on checkpoint progress
-    local baseSpawnCount = 1 + math.floor(absoluteCheckpoint * 0.5)
+    -- Get current loading bar progress percentage (0.0 to 1.0)
+    local currentProgress = loadingBar.progress or 0
+    
+    -- Calculate base spawn count based on progress percentage
+    -- At 0% we spawn 1 enemy, at 100% we spawn 6 enemies
+    local baseSpawnCount = 1 + math.floor(currentProgress * 5)
     
     -- Apply the game mode multiplier to the spawn count
     local adjustedSpawnCount = math.ceil(baseSpawnCount * enemyMultiplier)
     
     -- Cap the maximum number of enemies that can spawn at once
     local spawnCount = math.min(12, adjustedSpawnCount)
+    
+    -- Debug output to show what enemies are available at current progress
+    print("Spawning enemies at progress: " .. currentProgress * 100 .. "%")
 
     for i = 1, spawnCount do
         local possibleTypes = {}
         for _, type in ipairs(config.enemyTypes) do
-            if type.unlockAt <= absoluteCheckpoint then
+            -- Use the new unlockAtPercent property if available, fall back to unlockAt for compatibility
+            if (type.unlockAtPercent and type.unlockAtPercent <= currentProgress) or 
+               (not type.unlockAtPercent and type.unlockAt <= absoluteCheckpoint) then
                 table.insert(possibleTypes, type)
+                -- Debug which enemy types are available
+                -- print("Enemy available: " .. type.name .. " (unlocks at " .. (type.unlockAtPercent or (type.unlockAt/10)) * 100 .. "%)")
             end
         end
 
