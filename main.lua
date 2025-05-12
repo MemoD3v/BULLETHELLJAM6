@@ -42,6 +42,20 @@ function love.mousepressed(x, y, button)
 end
 
 function love.keypressed(key)
+    -- First check if menu is active
+    if mainMenu.isActive() then
+        mainMenu.keypressed(key)
+        return
+    end
+    
+    -- Now check if engine should handle this key press
+    local engine = require("modules.game.engine")
+    if engine.keypressed(key) then
+        -- Engine consumed the key press, don't pass to other handlers
+        return
+    end
+    
+    -- Otherwise, pass to game module for normal gameplay
     game.keypressed(key)
 end
 

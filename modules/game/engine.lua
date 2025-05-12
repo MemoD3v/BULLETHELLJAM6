@@ -14,6 +14,13 @@ engine.shielded = false
 engine.shieldTimer = 0
 engine.shieldPulse = 0
 
+-- Engine interaction
+engine.playerNearby = false    -- Is player close enough to interact?
+engine.interactionRadius = 2   -- How many cells away player can interact
+engine.showPrompt = false      -- Show 'Press E to start' prompt
+engine.promptTimer = 0         -- Animation timer for the prompt
+engine.active = false          -- Is engine running?
+
 function engine.update(dt, checkpointLevel, playerX, playerY)
     engine.animTimer = engine.animTimer + dt
     engine.instabilityLevel = checkpointLevel / 5
@@ -29,9 +36,29 @@ function engine.update(dt, checkpointLevel, playerX, playerY)
         engine.shieldPulse = 0.5 + 0.5 * math.sin(engine.shieldTimer * 5)
     end
     
+    -- Update prompt animation
+    engine.promptTimer = engine.promptTimer + dt
+    
+    -- Check if player is near the engine
+    if playerX and playerY then
+        local dx = playerX - engine.x
+        local dy = playerY - engine.y
+        local distanceSquared = dx*dx + dy*dy
+        
+        -- Player is within interaction radius
+        engine.playerNearby = (distanceSquared <= engine.interactionRadius * engine.interactionRadius)
+        
+        -- Only show the prompt if player is nearby and the main menu is closed
+        local mainMenu = require("modules.game.mainMenu")
+        engine.showPrompt = engine.playerNearby and mainMenu.gameReadyToStart and not engine.active
+    else
+        engine.playerNearby = false
+        engine.showPrompt = false
+    end
+    
     -- Make engine follow the player in RogueLike mode
     local gameModes = require("modules.game.gameModes")
-    if gameModes.isRogueLike() and playerX and playerY then
+    if gameModes.isRogueLike() and playerX and playerY and engine.active then
         -- Get distance between player and engine
         local dx = playerX - engine.x
         local dy = playerY - engine.y
@@ -51,10 +78,30 @@ function engine.update(dt, checkpointLevel, playerX, playerY)
     end
 end
 
-function engine.draw(gridOffsetX, gridOffsetY, fonts, showPrompt)
+function engine.draw(gridOffsetX, gridOffsetY, fonts)
     local ex = gridOffsetX + (engine.x - 1) * config.cellSize + config.cellSize / 2
     local ey = gridOffsetY + (engine.y - 1) * config.cellSize + config.cellSize / 2 + engine.animOffset
-
+    
+    -- Draw interaction prompt if player is nearby
+    if engine.showPrompt then
+        -- Draw floating prompt above the engine
+        love.graphics.setFont(fonts.medium)
+        local promptText = "Press E to start engine"
+        local textWidth = fonts.medium:getWidth(promptText)
+        local promptY = ey - 80 + math.sin(engine.promptTimer * 2) * 5  -- Gentle float effect
+        
+        -- Draw text with glow effect
+        love.graphics.setColor(0.2, 0.8, 1, 0.3 + 0.2 * math.sin(engine.promptTimer * 3))
+        love.graphics.print(promptText, ex - textWidth/2 - 1, promptY - 1)
+        love.graphics.print(promptText, ex - textWidth/2 + 1, promptY - 1)
+        love.graphics.print(promptText, ex - textWidth/2 - 1, promptY + 1)
+        love.graphics.print(promptText, ex - textWidth/2 + 1, promptY + 1)
+        
+        -- Core text
+        love.graphics.setColor(1, 1, 1, 0.9)
+        love.graphics.print(promptText, ex - textWidth/2, promptY)
+    end
+    
     -- Draw shield if active
     if engine.shielded then
         local shieldSize = 60 + engine.shieldPulse * 10
@@ -122,7 +169,9 @@ function engine.draw(gridOffsetX, gridOffsetY, fonts, showPrompt)
     local cheatW = fonts.large:getWidth(cheatText)
     love.graphics.print(cheatText, ex - cheatW / 2, ey - 110)
 
-    if showPrompt then
+    -- Show 'E to Start' prompt (using the engine's own showPrompt property)
+    -- This is the original game prompt that appears under the engine
+    if engine.showPrompt then
         local prompt = "> E To Start Payload <"
         love.graphics.setFont(fonts.small)
         local pw = fonts.small:getWidth(prompt)
@@ -151,10 +200,36 @@ function engine.reset()
     engine.shielded = false
     engine.shieldTimer = 0
     engine.shieldPulse = 0
+    
+    -- Additional reset for engine interaction
+    engine.active = false
+    engine.showPrompt = false
+    engine.playerNearby = false
 end
 
 function engine.isPlayerNearby(playerX, playerY)
     return math.abs(playerX - engine.x) <= 1 and math.abs(playerY - engine.y) <= 1
 end
+
+-- Handle key press for engine interaction
+function engine.keypressed(key)
+    if engine.showPrompt and key == "e" then
+        -- Start the engine
+        engine.active = true
+        
+        -- Call the actual game start function
+        local mainMenu = require("modules.game.mainMenu")
+        mainMenu.actuallyStartGame()
+        
+        -- Hide the prompt
+        engine.showPrompt = false
+        
+        return true -- Consumed the key press
+    end
+    
+    return false -- Didn't consume the key press
+end
+
+-- This has been consolidated with the engine.reset() function above
 
 return engine

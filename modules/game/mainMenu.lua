@@ -129,19 +129,44 @@ end
 
 function mainMenu.drawGlitchPolygon()
     local cx, cy = love.graphics.getWidth()/2, love.graphics.getHeight()/2
-    local sides = 6
-    local radius = 100 + 20 * math.sin(mainMenu.animTimer * 3)
+    local sides = 8  -- Increased number of sides for more complex shape
+    local radius = 120 + 30 * math.sin(mainMenu.animTimer * 2.5)
     local vertices = {}
+    
+    -- Create a seed for deterministic randomness based on time
+    local seed = math.floor(mainMenu.animTimer * 10) % 100
+    math.randomseed(seed)
+    
     for i = 1, sides do
-        local angle = (i / sides) * math.pi * 2 + mainMenu.animTimer * 0.8
-        local r = radius + math.random(-20, 20)
+        local angle = (i / sides) * math.pi * 2 + mainMenu.animTimer * 0.5
+        -- More controlled randomness
+        local variance = 10 + 15 * math.sin(mainMenu.animTimer * 4 + i)
+        local r = radius + variance
         table.insert(vertices, cx + math.cos(angle) * r)
         table.insert(vertices, cy + math.sin(angle) * r)
     end
-    love.graphics.setColor(1, 0.1 + math.random() * 0.2, 0.3, 0.3 + math.random() * 0.4)
+    
+    -- Outer glow
+    for i = 1, 3 do
+        local alpha = 0.1 - (i * 0.03)
+        love.graphics.setColor(0.8, 0.2, 0.4, alpha)
+        love.graphics.setLineWidth(8 + i * 3)
+        love.graphics.polygon("line", vertices)
+    end
+    
+    -- Fill with pulsing color
+    local pulseVal = 0.3 + 0.2 * math.sin(mainMenu.animTimer * 3)
+    love.graphics.setColor(0.8, pulseVal, 0.3 + pulseVal, 0.5)
     love.graphics.polygon("fill", vertices)
-    love.graphics.setColor(1, 1, 1, 0.1 + math.random() * 0.4)
+    
+    -- Inner highlight
+    love.graphics.setColor(1, 0.8, 0.9, 0.2 + 0.1 * math.sin(mainMenu.animTimer * 5))
+    love.graphics.setLineWidth(2)
     love.graphics.polygon("line", vertices)
+    
+    -- Reset random seed and line width to not affect other parts of the game
+    math.randomseed(os.time())
+    love.graphics.setLineWidth(1)
 end
 
 function mainMenu.drawMainScreen()
@@ -631,14 +656,29 @@ function mainMenu.handleModesMenuKeypress(key)
     end
 end
 
+-- Hide the menu when Play is selected, but don't start the game yet
 function mainMenu.startGame()
-    local loadingBar = require("modules.game.loadingBar")
     mainMenu.transitionState = "out"
     mainMenu.transitionTimer = 0
     
-    -- Reset loading bar and activate it
-    loadingBar.reset()
-    loadingBar.activate()
+    -- Instead of immediately starting the game, set up a flag that indicates
+    -- the player needs to approach the engine and press 'e'
+    mainMenu.gameReadyToStart = true
+    mainMenu.hide()
+    
+    -- We'll now rely on the game logic to check if player is near engine
+    -- and wait for 'e' key press before starting the actual loading process
+end
+
+-- This function will be called by the game when player is near engine and presses 'e'
+function mainMenu.actuallyStartGame()
+    if mainMenu.gameReadyToStart then
+        local loadingBar = require("modules.game.loadingBar")
+        -- Reset loading bar and activate it
+        loadingBar.reset()
+        loadingBar.activate()
+        mainMenu.gameReadyToStart = false
+    end
 end
 
 -- Update slider values based on mouse position
@@ -696,6 +736,12 @@ function mainMenu.show()
 
     end
 end
+
+-- Hide the menu UI
+function mainMenu.hide()
+    mainMenu.active = false
+end
+
 function mainMenu.isActive()
     return mainMenu.active
 end
